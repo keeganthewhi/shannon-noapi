@@ -16,6 +16,8 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { CLIMessage, ClaudeCodeOptions, SDKAssistantMessageError } from './claude-code-cli.js';
 
 function resolveGeminiBinary(): string {
@@ -194,6 +196,32 @@ export async function* query(params: {
   const args = buildArgs(prompt, options);
   const env = buildEnv(options);
   const geminiBin = resolveGeminiBinary();
+
+  // Fix for Docker: host-mounted ~/.gemini/projects.json may contain Windows paths
+  // that crash the Gemini CLI on Linux. Copy credentials to a writable temp directory
+  // with a clean projects.json.
+  try {
+    const { mkdirSync, copyFileSync, existsSync } = await import('node:fs');
+    const mountedGemini = join(process.env.HOME || '/tmp', '.gemini');
+    const writableGemini = '/tmp/.gemini-runtime';
+    mkdirSync(writableGemini, { recursive: true });
+    // Copy credential files (skip projects.json which has Windows paths)
+    for (const file of ['oauth_creds.json', 'settings.json', 'google_accounts.json', 'state.json', 'installation_id']) {
+      const src = join(mountedGemini, file);
+      if (existsSync(src)) copyFileSync(src, join(writableGemini, file));
+    }
+    // Write clean projects.json
+    writeFileSync(join(writableGemini, 'projects.json'), '{"projects":{}}', 'utf8');
+    // Point Gemini CLI to the clean directory
+    env.HOME = '/tmp/.gemini-parent';
+    mkdirSync('/tmp/.gemini-parent/.gemini', { recursive: true });
+    for (const file of ['oauth_creds.json', 'settings.json', 'google_accounts.json', 'state.json', 'installation_id', 'projects.json']) {
+      const src = join(writableGemini, file);
+      if (existsSync(src)) copyFileSync(src, join('/tmp/.gemini-parent/.gemini', file));
+    }
+  } catch {
+    // Ignore — if this fails, Gemini CLI will use the mounted directory as-is
+  }
 
   let proc: ChildProcess;
 
