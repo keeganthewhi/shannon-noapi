@@ -17,6 +17,7 @@ Tell your AI agent: *"Scan my project for security vulnerabilities"* — and Sha
 <br />
 
 [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/github/stars/keeganthewhi/shannon-noapi?style=social)](https://github.com/keeganthewhi/shannon-noapi)
 
 ---
 
@@ -60,8 +61,8 @@ Your AI Agent:
 ### 1. Download
 
 ```bash
-git clone https://github.com/keeganthewhi/shannon-cc.git
-cd shannon-cc
+git clone https://github.com/keeganthewhi/shannon-noapi.git
+cd shannon-noapi
 ```
 
 ### 2. Open Your AI Agent
@@ -74,7 +75,7 @@ Works with **any interface** — CLI, VS Code extension, JetBrains plugin, deskt
 | **OpenAI Codex** | `codex` | Codex extension | - | - | chatgpt.com |
 | **Google Gemini** | `gemini` | Gemini Code Assist | - | - | gemini.google.com |
 
-Open the `shannon-cc` folder in your tool. The agent reads `CLAUDE.md` / `AGENTS.md` and knows what to do.
+Open the `shannon-noapi` folder in your tool. The agent reads `CLAUDE.md` / `AGENTS.md` and knows what to do.
 
 ### 3. Tell It What to Scan
 
