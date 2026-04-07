@@ -6,7 +6,7 @@
 
 // Production Claude agent execution with retry, git checkpoints, and audit logging
 
-import { type JsonSchemaOutputFormat, query } from '@anthropic-ai/claude-agent-sdk';
+import { type JsonSchemaOutputFormat, query } from './claude-code-cli.js';
 import { fs, path } from 'zx';
 import type { AuditSession } from '../audit/index.js';
 import { isRetryableError, PentestError } from '../services/error-handling.js';

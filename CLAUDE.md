@@ -2,6 +2,24 @@
 
 AI-powered penetration testing agent for defensive security analysis. Automates vulnerability assessment by combining reconnaissance tools with AI-powered code analysis.
 
+## Claude Code CLI Fork (shannon-cc)
+
+This fork replaces `@anthropic-ai/claude-agent-sdk` with direct Claude Code CLI invocations. Instead of requiring an `ANTHROPIC_API_KEY` with API credits, Shannon now runs through the `claude` CLI binary, which uses your Claude Max/Pro subscription.
+
+### Key changes from upstream
+
+The adapter lives in `apps/worker/src/ai/claude-code-cli.ts`. It spawns `claude -p <prompt> --output-format stream-json --dangerously-skip-permissions` and yields structured JSONL messages matching the SDK's async generator interface. All downstream code (message dispatch, audit logging, Temporal orchestration) is unchanged.
+
+Set `CLAUDE_CODE_BINARY` env var to override the `claude` binary path if it's not on PATH.
+
+### What was removed
+
+The `@anthropic-ai/claude-agent-sdk` npm package. All types it exported (`SDKAssistantMessageError`, `JsonSchemaOutputFormat`, `query`) are now inlined in `claude-code-cli.ts`.
+
+### What stays the same
+
+Temporal workflow orchestration, Docker container isolation, git checkpoint/rollback, audit logging, prompt templates, multi-agent parallel execution, structured output validation. The entire pipeline is intact. Only the LLM invocation transport layer changed.
+
 ## Commands
 
 **Prerequisites:** Docker, AI provider credentials (`.env` for local, `shn setup` or env vars for npx)

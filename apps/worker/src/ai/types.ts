@@ -6,7 +6,7 @@
 
 // Type definitions for Claude executor message processing pipeline
 
-import type { SDKAssistantMessageError } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessageError } from './claude-code-cli.js';
 
 export interface ExecutionContext {
   isParallelExecution: boolean;

@@ -4,7 +4,7 @@
 // it under the terms of the GNU Affero General Public License version 3
 // as published by the Free Software Foundation.
 
-import type { SDKAssistantMessageError } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKAssistantMessageError } from './claude-code-cli.js';
 import { PentestError } from '../services/error-handling.js';
 import type { ActivityLogger } from '../types/activity-logger.js';
 import { ErrorCode } from '../types/errors.js';
