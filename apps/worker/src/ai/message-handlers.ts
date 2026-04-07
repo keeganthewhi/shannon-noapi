@@ -241,7 +241,7 @@ function handleToolUseMessage(message: ToolUseMessage): ToolUseData {
 // Truncates long results for display (500 char limit), preserves full content for logging
 function handleToolResultMessage(message: ToolResultMessage): ToolResultData {
   const content = message.content;
-  const contentStr = typeof content === 'string' ? content : JSON.stringify(content, null, 2);
+  const contentStr = typeof content === 'string' ? content : (content != null ? JSON.stringify(content, null, 2) : '');
 
   const displayContent =
     contentStr.length > 500
