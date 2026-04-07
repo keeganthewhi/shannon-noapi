@@ -6,7 +6,8 @@
 
 // Production Claude agent execution with retry, git checkpoints, and audit logging
 
-import { type JsonSchemaOutputFormat, query } from './claude-code-cli.js';
+import type { JsonSchemaOutputFormat } from './claude-code-cli.js';
+import { query } from './cli-adapter.js';
 import { fs, path } from 'zx';
 import type { AuditSession } from '../audit/index.js';
 import { isRetryableError, PentestError } from '../services/error-handling.js';
@@ -172,6 +173,13 @@ export async function runClaudePrompt(
     'HOME',
     'PATH',
     'PLAYWRIGHT_MCP_EXECUTABLE_PATH',
+    'OPENAI_API_KEY',
+    'OPENROUTER_API_KEY',
+    'GOOGLE_API_KEY',
+    'SHANNON_AGENT_CLI',
+    'CODEX_BINARY',
+    'GEMINI_BINARY',
+    'CLAUDE_CODE_BINARY',
   ];
   for (const name of passthroughVars) {
     const val = process.env[name];

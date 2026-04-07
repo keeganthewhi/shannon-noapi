@@ -5,3 +5,17 @@ credentials/
 dist/
 repos/
 .turbo/
+
+# OS artifacts
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Claude Code ephemeral state
+.claude-session.md

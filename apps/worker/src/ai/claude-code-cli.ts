@@ -201,6 +201,13 @@ export async function* query(params: {
     throw new Error(`Failed to spawn Claude Code CLI: ${msg}. Is 'claude' installed and on PATH?`);
   }
 
+  // Cleanup helper — kill process and close readline if generator is abandoned
+  function cleanup(): void {
+    if (proc && !proc.killed) {
+      proc.kill('SIGTERM');
+    }
+  }
+
   // Collect stderr for error classification
   let stderrBuffer = '';
   proc.stderr?.on('data', (chunk: Buffer) => {
@@ -223,24 +230,34 @@ export async function* query(params: {
 
   let lastResult: CLIMessage | null = null;
 
-  for await (const line of rl) {
-    const message = parseLine(line);
-    if (!message) continue;
+  try {
+    for await (const line of rl) {
+      const message = parseLine(line);
+      if (!message) continue;
 
-    if (message.type === 'result') {
-      lastResult = message;
+      if (message.type === 'result') {
+        lastResult = message;
+      }
+
+      yield message;
     }
-
-    yield message;
+  } finally {
+    // Ensure readline interface is closed to prevent resource leaks
+    rl.close();
   }
 
   // Wait for process to exit
   const exitCode = await new Promise<number | null>((resolve) => {
-    proc.on('close', resolve);
-    // If already exited
     if (proc.exitCode !== null) {
       resolve(proc.exitCode);
+      return;
     }
+    proc.on('close', resolve);
+    // Safety timeout — kill process if it doesn't exit within 30s after stream ends
+    setTimeout(() => {
+      cleanup();
+      resolve(null);
+    }, 30_000);
   });
 
   // If process failed without yielding a result message, synthesize one
@@ -257,8 +274,7 @@ export async function* query(params: {
 
     // Yield a failure result
     yield {
-      type: 'result',
-      result: null,
+      type: 'result' as const,
       total_cost_usd: 0,
       duration_ms: 0,
       subtype: 'error',

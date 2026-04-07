@@ -78,11 +78,12 @@ FROM cgr.dev/chainguard/wolfi-base:latest AS runtime
 # Install only runtime dependencies
 USER root
 RUN apk update && apk add --no-cache \
-    # Core utilities
+    # Core utilities (coreutils provides GNU env with -S flag for Codex/Gemini shebangs)
     git \
     bash \
     curl \
     ca-certificates \
+    coreutils \
     # Network libraries (runtime)
     libpcap \
     # Security tools
@@ -141,7 +142,11 @@ COPY --from=builder /app/node_modules /app/node_modules
 COPY --from=builder /app/apps/worker /app/apps/worker
 COPY --from=builder /app/apps/cli/package.json /app/apps/cli/package.json
 
-RUN npm install -g @anthropic-ai/claude-code@2.1.84 @playwright/cli@0.1.1
+# Install coding agent CLIs and Playwright MCP
+# SHANNON_AGENT_CLI env var selects which one to use at runtime (claude/codex/gemini)
+RUN npm install -g @anthropic-ai/claude-code@2.1.84 @playwright/cli@0.1.1 && \
+    npm install -g @openai/codex@latest || true && \
+    npm install -g @google/gemini-cli@latest || true
 RUN mkdir -p /tmp/.claude/skills && \
     playwright-cli install --skills && \
     cp -r .claude/skills/playwright-cli /tmp/.claude/skills/ && \

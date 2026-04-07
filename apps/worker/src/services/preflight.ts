@@ -22,7 +22,9 @@ import { lookup } from 'node:dns/promises';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import https from 'node:https';
-import { type SDKAssistantMessageError, query } from '../ai/claude-code-cli.js';
+import type { SDKAssistantMessageError } from '../ai/claude-code-cli.js';
+import { query } from '../ai/claude-code-cli.js';
+import { resolveAgentCLI } from '../ai/cli-adapter.js';
 import { resolveModel } from '../ai/models.js';
 import { parseConfig } from '../config-parser.js';
 import type { ActivityLogger } from '../types/activity-logger.js';
@@ -178,8 +180,19 @@ function classifySdkError(sdkError: SDKAssistantMessageError, authType: string):
   }
 }
 
-/** Validate credentials via a minimal Claude Agent SDK query. */
+/** Validate credentials via a minimal CLI query. */
 async function validateCredentials(logger: ActivityLogger): Promise<Result<void, PentestError>> {
+  // 0. Non-Claude agents (Codex/Gemini) use their own auth — skip SDK validation
+  const agentCLI = resolveAgentCLI();
+  if (agentCLI === 'codex') {
+    logger.info('Using Codex CLI — skipping Anthropic credential validation');
+    return ok(undefined);
+  }
+  if (agentCLI === 'gemini') {
+    logger.info('Using Gemini CLI — skipping Anthropic credential validation');
+    return ok(undefined);
+  }
+
   // 1. Custom base URL — validate endpoint is reachable via SDK query
   if (process.env.ANTHROPIC_BASE_URL) {
     const baseUrl = process.env.ANTHROPIC_BASE_URL;
@@ -478,9 +491,14 @@ export async function runPreflightChecks(
   }
 
   // 4. Target URL reachability check (cheap — 1 HTTP round-trip)
-  const urlResult = await validateTargetUrl(targetUrl, logger);
-  if (!urlResult.ok) {
-    return urlResult;
+  // Skip when code-only mode (no live URL provided)
+  if (targetUrl === 'code-only') {
+    logger.info('Code-only mode: skipping target URL reachability check');
+  } else {
+    const urlResult = await validateTargetUrl(targetUrl, logger);
+    if (!urlResult.ok) {
+      return urlResult;
+    }
   }
 
   logger.info('All preflight checks passed');

@@ -7,6 +7,7 @@
 
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
@@ -239,6 +240,23 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
   // Mount credentials file to fixed container path
   if (opts.credentials) {
     args.push('-v', `${opts.credentials}:/app/credentials/google-sa-key.json:ro`);
+  }
+
+  // Mount agent CLI credentials so Claude/Codex/Gemini can authenticate inside the container
+  const home = os.homedir();
+  const agentCredentials: Array<{ hostDir: string; containerDir: string }> = [
+    { hostDir: path.join(home, '.claude'), containerDir: '/tmp/.claude' },
+    { hostDir: path.join(home, '.codex'), containerDir: '/tmp/.codex' },
+    { hostDir: path.join(home, '.gemini'), containerDir: '/tmp/.gemini' },
+  ];
+  for (const { hostDir, containerDir } of agentCredentials) {
+    try {
+      if (fs.existsSync(hostDir)) {
+        args.push('-v', `${hostDir}:${containerDir}:ro`);
+      }
+    } catch {
+      // Skip if directory doesn't exist or can't be accessed
+    }
   }
 
   // Environment

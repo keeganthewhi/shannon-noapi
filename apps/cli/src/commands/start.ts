@@ -64,8 +64,11 @@ export async function start(args: StartArgs): Promise<void> {
   const containerName = `shannon-worker-${suffix}`;
 
   // 8. Generate workspace name if not provided
-  const workspace =
-    args.workspace ?? `${new URL(args.url).hostname.replace(/[^a-zA-Z0-9-]/g, '-')}_shannon-${Date.now()}`;
+  const hostnameSlug =
+    args.url === 'code-only'
+      ? 'code-only'
+      : new URL(args.url).hostname.replace(/[^a-zA-Z0-9-]/g, '-');
+  const workspace = args.workspace ?? `${hostnameSlug}_shannon-${Date.now()}`;
 
   // 9. Create writable overlay directories (mounted over :ro repo paths inside container)
   const workspacePath = path.join(workspacesDir, workspace);

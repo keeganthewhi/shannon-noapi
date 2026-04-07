@@ -159,10 +159,16 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
     }
   }
 
-  if (!url || !repo) {
-    console.error('ERROR: --url and --repo are required');
-    console.error(`Usage: ${getMode() === 'local' ? './shannon' : 'npx @keygraph/shannon'} start -u <url> -r <path>`);
+  if (!repo) {
+    console.error('ERROR: --repo is required');
+    console.error(`Usage: ${getMode() === 'local' ? './shannon' : 'npx @keygraph/shannon'} start -r <path> [-u <url>]`);
     process.exit(1);
+  }
+
+  // Default to code-only mode when no URL is provided
+  if (!url) {
+    url = 'code-only';
+    console.log('No --url provided. Running in code-only mode (source code analysis only).');
   }
 
   return {
