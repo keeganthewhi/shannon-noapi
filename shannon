@@ -1,0 +1,3 @@
+#!/usr/bin/env node
+process.env.SHANNON_LOCAL = '1';
+import('./apps/cli/dist/index.mjs');
