@@ -260,7 +260,7 @@ export async function* query(params: {
   let lastResult: CLIMessage | null = null;
 
   // Gemini CLI can hang after tool calls — use an inactivity timeout to detect stalls
-  const INACTIVITY_TIMEOUT_MS = 600_000; // 10 minutes of silence = stalled (Gemini sub-agents can take 3-5 min)
+  const INACTIVITY_TIMEOUT_MS = 1_800_000; // 30 minutes — Gemini sub-agents produce no stdout during execution
   let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
 
   function resetInactivityTimer(): void {
