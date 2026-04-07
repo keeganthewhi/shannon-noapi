@@ -115,6 +115,20 @@ function detectGemini(): DetectedAgent | null {
   return { name: 'gemini', version, hasAuth, envLines };
 }
 
+/**
+ * Detect which agent CLI is calling us by checking environment variables
+ * that each agent sets when running subprocesses.
+ */
+function detectCallingAgent(): 'claude' | 'codex' | 'gemini' | null {
+  // Claude Code sets these
+  if (process.env.CLAUDE_CODE_ENTRY_POINT || process.env.CLAUDE_CONVERSATION_ID) return 'claude';
+  // Codex sets these
+  if (process.env.CODEX_SESSION_ID || process.env.OPENAI_CODEX) return 'codex';
+  // Gemini sets these
+  if (process.env.GEMINI_SESSION_ID || process.env.GOOGLE_GEMINI_CLI) return 'gemini';
+  return null;
+}
+
 export function autoSetup(): void {
   console.log('Shannon Setup — Auto-detecting agent CLI and credentials...\n');
 
@@ -146,9 +160,32 @@ export function autoSetup(): void {
   }
   console.log('');
 
-  // 3. Pick the best agent (prefer authenticated, then claude > codex > gemini)
+  // 3. Pick the best agent
+  // Priority: env var override > calling agent detection > first authenticated
   const authenticated = agents.filter((a) => a.hasAuth);
-  const selected = authenticated.length > 0 ? authenticated[0]! : agents[0]!;
+  let selected: DetectedAgent;
+
+  // Allow explicit override via env var
+  const override = process.env.SHANNON_AGENT_CLI?.toLowerCase();
+  const overrideMatch = override ? authenticated.find((a) => a.name === override) || agents.find((a) => a.name === override) : null;
+
+  if (overrideMatch) {
+    selected = overrideMatch;
+    console.log(`Using agent from SHANNON_AGENT_CLI: ${selected.name}`);
+  } else if (authenticated.length === 1) {
+    // Only one authenticated — obvious choice
+    selected = authenticated[0]!;
+  } else if (authenticated.length > 1) {
+    // Multiple authenticated — detect which agent is calling us
+    const callingAgent = detectCallingAgent();
+    const callerMatch = callingAgent ? authenticated.find((a) => a.name === callingAgent) : null;
+    selected = callerMatch || authenticated[0]!;
+    if (callerMatch) {
+      console.log(`Detected calling agent: ${selected.name}`);
+    }
+  } else {
+    selected = agents[0]!;
+  }
 
   if (!selected.hasAuth) {
     console.warn(`WARNING: ${selected.name} is installed but not authenticated.`);
