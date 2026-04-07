@@ -259,8 +259,24 @@ export async function* query(params: {
   const rl = createInterface({ input: proc.stdout!, crlfDelay: Infinity });
   let lastResult: CLIMessage | null = null;
 
+  // Gemini CLI can hang after tool calls — use an inactivity timeout to detect stalls
+  const INACTIVITY_TIMEOUT_MS = 120_000; // 2 minutes of silence = stalled
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function resetInactivityTimer(): void {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(() => {
+      // Force-kill the stalled Gemini process
+      cleanup();
+      rl.close();
+    }, INACTIVITY_TIMEOUT_MS);
+  }
+
+  resetInactivityTimer();
+
   try {
     for await (const line of rl) {
+      resetInactivityTimer();
       const message = parseGeminiEvent(line);
       if (!message) continue;
 
@@ -271,6 +287,7 @@ export async function* query(params: {
       yield message;
     }
   } finally {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
     rl.close();
   }
 
