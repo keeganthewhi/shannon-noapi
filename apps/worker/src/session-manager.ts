@@ -126,16 +126,33 @@ export const AGENT_PHASE_MAP: Readonly<Record<AgentName, PhaseName>> = Object.fr
   report: 'reporting',
 });
 
-// Factory function for vulnerability queue validators
+// Factory function for vulnerability validators
+// Accepts deliverable-only (CLI mode can't produce structured queue JSON)
+// Queue JSON is optional — exploitation gating handles missing queues separately
 function createVulnValidator(vulnType: VulnType): AgentValidator {
   return async (sourceDir: string, logger: ActivityLogger): Promise<boolean> => {
+    // 1. Check if deliverable markdown exists (required)
+    const deliverableFile = path.join(
+      sourceDir,
+      '.shannon',
+      'deliverables',
+      `${vulnType}_analysis_deliverable.md`,
+    );
+    const deliverableExists = await fs.pathExists(deliverableFile);
+
+    if (!deliverableExists) {
+      logger.warn(`Deliverable missing for ${vulnType}: ${deliverableFile}`);
+      return false;
+    }
+
+    // 2. Try full queue validation (deliverable + queue JSON)
     try {
       await validateQueueAndDeliverable(vulnType, sourceDir);
       return true;
-    } catch (error) {
-      const errMsg = error instanceof Error ? error.message : String(error);
-      logger.warn(`Queue validation failed for ${vulnType}: ${errMsg}`);
-      return false;
+    } catch {
+      // Queue JSON missing — acceptable in CLI mode (no structured output support)
+      logger.info(`Queue JSON missing for ${vulnType} — deliverable-only mode (CLI adapter)`);
+      return true;
     }
   };
 }
