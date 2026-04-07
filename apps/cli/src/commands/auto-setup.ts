@@ -179,9 +179,18 @@ export function autoSetup(): void {
     // Multiple authenticated — detect which agent is calling us
     const callingAgent = detectCallingAgent();
     const callerMatch = callingAgent ? authenticated.find((a) => a.name === callingAgent) : null;
-    selected = callerMatch || authenticated[0]!;
     if (callerMatch) {
+      selected = callerMatch;
       console.log(`Detected calling agent: ${selected.name}`);
+    } else {
+      // Can't auto-detect — list options and let user pick
+      console.log('Multiple authenticated agents found. Pick one:');
+      for (let i = 0; i < authenticated.length; i++) {
+        console.log(`  ${i + 1}. ${authenticated[i]!.name}`);
+      }
+      console.log(`\nTo choose, re-run with: SHANNON_AGENT_CLI=<name> ./shannon setup`);
+      console.log(`Defaulting to: ${authenticated[0]!.name}\n`);
+      selected = authenticated[0]!;
     }
   } else {
     selected = agents[0]!;
