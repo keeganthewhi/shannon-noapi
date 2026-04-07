@@ -5,23 +5,11 @@ You are helping a user run Shannon, an automated security scanner for web applic
 ## Quick Reference
 
 ```bash
-# Install and build (one time)
-pnpm install && pnpm build
-
-# Scan with live URL
-./shannon start -u https://example.com -r /path/to/repo
-
-# Scan code only (no live URL needed)
-./shannon start -r /path/to/repo
-
-# With named workspace (can resume later)
-./shannon start -u https://example.com -r /path/to/repo -w my-scan
-
-# Monitor
-./shannon logs <workspace>
-
-# Stop
-./shannon stop
+pnpm install && pnpm build   # one time
+./shannon setup               # auto-detects agent + credentials
+./shannon start -r /path/to/repo [-u https://app.com]
+./shannon logs <workspace>    # monitor
+./shannon stop                # stop
 ```
 
 ## Setup Flow
@@ -30,101 +18,57 @@ When a user asks you to scan a project with Shannon, follow these steps:
 
 ### Step 1: Check Prerequisites
 
-Verify these are available:
-- Docker Desktop is running: `docker info`
-- Node.js 18+: `node --version`
-- pnpm: `pnpm --version` (install with `npm install -g pnpm` if missing)
+```bash
+docker info          # Docker must be running
+node --version       # Need 18+
+pnpm --version       # Need 10.16+ (install: npm i -g pnpm)
+```
 
-### Step 2: Build Shannon (if not already built)
+### Step 2: Build and Setup
 
 ```bash
 cd <shannon-repo-directory>
 pnpm install
 pnpm build
+./shannon setup      # auto-detects Claude/Codex/Gemini, writes .env
 ```
 
-### Step 3: Configure Credentials
+`./shannon setup` automatically:
+- Detects which agent CLIs are installed (Claude Code, Codex, Gemini)
+- Reads their credential files
+- Picks the best authenticated agent
+- Writes `.env` with the correct configuration
 
-Check what the user has by reading `.env`. If no `.env` exists, create one.
-
-**Auto-detect the agent CLI being used and configure accordingly:**
-
-| Agent | Detection | Credential Source |
-|-------|-----------|-------------------|
-| Claude Code | `claude --version` succeeds | Read `~/.claude/.credentials.json` → `claudeAiOauth.accessToken` |
-| Codex | `codex --version` succeeds | Read `~/.codex/auth.json` → check if tokens exist |
-| Gemini | `gemini --version` succeeds | Read `~/.gemini/settings.json` → check auth method |
-
-**Create `.env` based on what's available:**
-
-For Claude Code (OAuth subscription):
-```
-CLAUDE_CODE_OAUTH_TOKEN=<token from ~/.claude/.credentials.json>
-SHANNON_AGENT_CLI=claude
-CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
-```
-
-For Codex (ChatGPT account):
-```
-OPENAI_API_KEY=<if available, otherwise codex uses its own auth>
-SHANNON_AGENT_CLI=codex
-CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
-```
-
-For Gemini (Google account):
-```
-SHANNON_AGENT_CLI=gemini
-CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
-```
-
-If the user has an API key instead:
-```
-ANTHROPIC_API_KEY=<key>
-CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000
-```
-
-### Step 4: Ask the User What to Scan
+### Step 3: Ask the User What to Scan
 
 Ask these questions:
 1. **What repo to scan?** — Get the path to the source code
-2. **Is there a live URL?** — If yes, use it. If no, Shannon runs in code-only mode (analyzes source code only, no live exploitation)
+2. **Is there a live URL?** — If yes, use it. If no, Shannon runs in code-only mode
 3. **Does the app need login?** — If yes, create a `config.yaml` with auth details
-4. **Named workspace?** — Optional, for easy resume
 
-### Step 5: Run the Scan
+### Step 4: Run the Scan
 
 ```bash
 # With live URL
-./shannon start -u <url> -r <repo-path> -w <workspace-name>
+./shannon start -u <url> -r <repo-path>
 
 # Code only (no live URL)
-./shannon start -r <repo-path> -w <workspace-name>
+./shannon start -r <repo-path>
 
 # Local app (running on host machine)
-./shannon start -u http://host.docker.internal:<port> -r <repo-path> -w <workspace-name>
-
-# With OpenAI/Gemini via router
-./shannon start -u <url> -r <repo-path> --router
+./shannon start -u http://host.docker.internal:<port> -r <repo-path>
 ```
 
 First run builds the Docker image automatically (~5-10 minutes).
 
-### Step 6: Monitor Progress
+### Step 5: Monitor and Deliver Results
 
 ```bash
-# Tail the workflow log
 ./shannon logs <workspace>
-
-# Or read the log file directly
-cat workspaces/<workspace>/workflow.log
-
-# Check agent status
-cat workspaces/<workspace>/session.json
+# Or: cat workspaces/<workspace>/workflow.log
 ```
 
-### Step 7: Deliver Results
-
-When the scan completes, the report is at:
+When done, the report is at:
 ```
 workspaces/<workspace>/deliverables/comprehensive_security_assessment_report.md
 ```

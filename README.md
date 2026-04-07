@@ -58,6 +58,20 @@ Your AI Agent:
 
 ## Quick Start
 
+```bash
+git clone https://github.com/keeganthewhi/shannon-noapi.git
+cd shannon-noapi
+pnpm install && pnpm build
+./shannon setup
+./shannon start -r /path/to/your/repo
+```
+
+That's it. `setup` auto-detects your agent (Claude/Codex/Gemini) and credentials. `start` builds Docker, launches the scan.
+
+---
+
+## Detailed Setup
+
 ### 1. Download
 
 ```bash

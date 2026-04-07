@@ -214,10 +214,11 @@ switch (command) {
     break;
   case 'setup':
     if (getMode() === 'local') {
-      console.error('ERROR: setup is only available in npx mode. In local mode, use .env');
-      process.exit(1);
+      const { autoSetup } = await import('./commands/auto-setup.js');
+      autoSetup();
+    } else {
+      setup();
     }
-    setup();
     break;
   case 'build':
     build(args.includes('--no-cache'));

@@ -19,3 +19,8 @@ Thumbs.db
 
 # Claude Code ephemeral state
 .claude-session.md
+
+# Agent-specific project config (not needed in repo)
+.claude/
+.codex/
+.gemini/
