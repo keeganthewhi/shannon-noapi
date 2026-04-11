@@ -15,10 +15,25 @@
  */
 
 import { spawn, type ChildProcess } from 'node:child_process';
+import { appendFileSync, writeFileSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { CLIMessage, ClaudeCodeOptions, SDKAssistantMessageError } from './claude-code-cli.js';
+
+/**
+ * Debug helper: dump raw Gemini JSONL events to a file when GEMINI_DEBUG_DUMP
+ * is set. Makes it possible to reverse-engineer Gemini's actual stream-json
+ * schema without having to modify the adapter and rebuild every time.
+ */
+function dumpRawEvent(line: string): void {
+  const dumpPath = process.env.GEMINI_DEBUG_DUMP;
+  if (!dumpPath) return;
+  try {
+    appendFileSync(dumpPath, `${line}\n`, 'utf8');
+  } catch {
+    // Silent — debug only
+  }
+}
 
 function resolveGeminiBinary(): string {
   return process.env.GEMINI_BINARY || 'gemini';
@@ -57,8 +72,21 @@ function buildEnv(options: ClaudeCodeOptions): NodeJS.ProcessEnv {
 /**
  * Parse a Gemini JSONL line into a Shannon CLIMessage.
  *
- * Gemini's stream-json format is close to Claude Code's but may have
- * slightly different field names. This normalizer handles both formats.
+ * The real Gemini stream-json schema (from @google/gemini-cli's
+ * stream-json-formatter and the emitEvent call sites in gemini.js) is:
+ *
+ *   {"type":"init",        "timestamp", "session_id", "model"}
+ *   {"type":"message",     "timestamp", "role", "content", "delta"}
+ *   {"type":"tool_use",    "timestamp", "tool_name", "tool_id", "parameters"}
+ *   {"type":"tool_result", "timestamp", "tool_id", "status", "output", "error"}
+ *   {"type":"error",       "timestamp", "severity", "message"}
+ *   {"type":"result",      "timestamp", "status", "stats", "error"}
+ *
+ * Earlier versions of this adapter assumed Claude-like field names
+ * (`name`, `args`/`arguments`/`input`, etc.), which silently dropped
+ * every tool_use and tool_result because none of those keys exist on
+ * Gemini events. The result was empty parameters in every agent log
+ * and validator rejections despite successful tool execution.
  */
 function parseGeminiEvent(line: string): CLIMessage | null {
   const trimmed = line.trim();
@@ -87,67 +115,85 @@ function parseGeminiEvent(line: string): CLIMessage | null {
   // Gemini "message" → assistant or user based on role
   if (eventType === 'message') {
     const role = event.role as string | undefined;
-
-    if (role === 'assistant') {
-      return {
-        type: 'assistant',
-        message: { content: (event.content as string) || '' },
-      };
-    }
+    const content = (event.content as string) ?? '';
 
     if (role === 'user') {
-      return { type: 'user', content: event.content };
+      return { type: 'user', content };
     }
 
-    // Tool messages
-    if (role === 'tool') {
-      return { type: 'tool_result', content: event.content };
-    }
-
-    // Default: treat as assistant
+    // Assistant (and any other role that isn't user) — Gemini emits delta
+    // chunks as role="assistant" with delta:true. Shannon's message handler
+    // concatenates the content field across turns, so pass it through as-is.
     return {
       type: 'assistant',
-      message: { content: (event.content as string) || '' },
+      message: { content },
     };
   }
 
-  // Gemini "tool_call" or "function_call" → tool_use
-  if (eventType === 'tool_call' || eventType === 'function_call') {
+  // Gemini "tool_use" — the REAL tool call event (not "tool_call"/"function_call").
+  // Shannon's CLIMessage type name collides with Gemini's type string, which is
+  // fine — we're normalizing both onto the same shape.
+  if (eventType === 'tool_use') {
+    const parameters = (event.parameters as Record<string, unknown>) ?? {};
     return {
       type: 'tool_use',
-      name: (event.name as string) || (event.tool_name as string) || 'gemini_tool',
-      input: (event.args as Record<string, unknown>) || (event.arguments as Record<string, unknown>) || (event.input as Record<string, unknown>),
+      name: (event.tool_name as string) || 'gemini_tool',
+      input: parameters,
+      ...(typeof event.tool_id === 'string' && { tool_id: event.tool_id }),
     };
   }
 
-  // Gemini "tool_result" or "function_response" → tool_result
-  if (eventType === 'tool_result' || eventType === 'function_response') {
+  // Gemini "tool_result" — Shannon's handler reads the `content` field, so
+  // synthesize that from `output`/`error` and preserve the status for logging.
+  if (eventType === 'tool_result') {
+    const status = event.status as string | undefined;
+    const output = event.output;
+    const errorInfo = event.error as { message?: string; type?: string } | undefined;
+
+    let content: unknown;
+    if (status === 'error' && errorInfo) {
+      content = `[${errorInfo.type || 'TOOL_ERROR'}] ${errorInfo.message || 'Tool execution failed'}`;
+    } else if (output !== undefined && output !== null) {
+      content = output;
+    } else {
+      // Empty-output success — common for side-effect tools like Write, Edit, Bash
+      // (when the command produced no stdout). Represent as an empty string so
+      // downstream stringification doesn't explode on undefined.
+      content = '';
+    }
+
     return {
       type: 'tool_result',
-      content: event.output || event.response || event.content,
+      content,
+      ...(typeof event.tool_id === 'string' && { tool_id: event.tool_id }),
+      ...(status && { status }),
     };
   }
 
-  // Gemini "result" → result (with stats mapping)
+  // Gemini "result" → final result with stats. Stats carry the duration and
+  // tool-call counts; we surface them in the result message and map status.
   if (eventType === 'result') {
     const stats = event.stats as Record<string, unknown> | undefined;
+    const status = event.status as string | undefined;
+    const errorInfo = event.error as { message?: string } | undefined;
+
     return {
       type: 'result',
-      result: (event.content as string) || (event.status as string) || 'completed',
+      result: errorInfo?.message || status || 'completed',
       total_cost_usd: 0,
       duration_ms: (stats?.duration_ms as number) || 0,
-      subtype: (event.status as string) === 'success' ? 'success' : 'error',
+      subtype: status === 'success' ? 'success' : 'error',
     };
   }
 
-  // Gemini "error" → assistant error
+  // Gemini "error" → assistant error with classified reason
   if (eventType === 'error') {
-    const message = (event.message as string) || (event.error as string) || 'Unknown Gemini error';
+    const message = (event.message as string) || 'Unknown Gemini error';
     let errorClassification: SDKAssistantMessageError = 'server_error';
     const lower = message.toLowerCase();
-    if (lower.includes('rate limit') || lower.includes('429')) errorClassification = 'rate_limit';
-    if (lower.includes('auth') || lower.includes('api key')) errorClassification = 'authentication_failed';
-    if (lower.includes('quota') || lower.includes('billing')) errorClassification = 'billing_error';
+    if (lower.includes('rate limit') || lower.includes('429') || lower.includes('quota')) errorClassification = 'rate_limit';
+    if (lower.includes('exhausted') || lower.includes('billing')) errorClassification = 'billing_error';
+    if (lower.includes('auth') || lower.includes('api key') || lower.includes('unauthorized')) errorClassification = 'authentication_failed';
 
     return {
       type: 'assistant',
@@ -156,20 +202,11 @@ function parseGeminiEvent(line: string): CLIMessage | null {
     };
   }
 
-  // Direct passthrough for types that already match CLIMessage
-  if (
-    eventType === 'system' ||
-    eventType === 'assistant' ||
-    eventType === 'tool_progress' ||
-    eventType === 'tool_use_summary'
-  ) {
-    return event as CLIMessage;
-  }
-
-  // Unknown event — pass through for logging
+  // Unknown event — return a tool_progress wrapper so it shows up in logs
+  // WITHOUT letting event.type overwrite the wrapper type via spread-order.
   return {
-    type: 'tool_progress',
     ...event,
+    type: 'tool_progress',
   };
 }
 
@@ -258,6 +295,7 @@ export async function* query(params: {
 
   const rl = createInterface({ input: proc.stdout!, crlfDelay: Infinity });
   let lastResult: CLIMessage | null = null;
+  let lastAssistantContent = '';
 
   // Gemini CLI can hang after tool calls — use an inactivity timeout to detect stalls
   const INACTIVITY_TIMEOUT_MS = 1_800_000; // 30 minutes — Gemini sub-agents produce no stdout during execution
@@ -277,11 +315,17 @@ export async function* query(params: {
   try {
     for await (const line of rl) {
       resetInactivityTimer();
+      dumpRawEvent(line);
       const message = parseGeminiEvent(line);
       if (!message) continue;
 
       if (message.type === 'result') {
         lastResult = message;
+      } else if (message.type === 'assistant' && 'message' in message) {
+        const content = (message as { message: { content: unknown } }).message.content;
+        if (typeof content === 'string' && content.trim().length > 0) {
+          lastAssistantContent = content;
+        }
       }
 
       yield message;
@@ -304,22 +348,43 @@ export async function* query(params: {
     }, 30_000);
   });
 
-  // If no result was yielded and process failed, synthesize one
-  if (exitCode && exitCode > 0 && !lastResult) {
-    const errorType = classifyProcessError(stderrBuffer, exitCode);
-    if (errorType) {
+  // Synthesize a final result message if Gemini didn't emit one. Gemini CLI
+  // does not reliably emit a `result` event on every successful run —
+  // particularly when the LLM produces a short final assistant message and
+  // exits cleanly. Without a synthesized result Shannon's processMessageStream
+  // leaves `result = null`, which then trips validateAgentOutput's
+  // `!result.result` check and deletes the deliverable during rollback.
+  // Always yield SOMETHING Shannon can treat as a completion signal.
+  if (!lastResult) {
+    const processFailed = exitCode !== 0 && exitCode !== null;
+
+    if (processFailed) {
+      const errorType = classifyProcessError(stderrBuffer, exitCode);
+      if (errorType) {
+        yield {
+          type: 'assistant',
+          message: { content: stderrBuffer || `Gemini CLI exited with code ${exitCode}` },
+          error: errorType,
+        };
+      }
+
       yield {
-        type: 'assistant',
-        message: { content: stderrBuffer || `Gemini CLI exited with code ${exitCode}` },
-        error: errorType,
+        type: 'result' as const,
+        result: stderrBuffer || `Gemini CLI exited with code ${exitCode}`,
+        total_cost_usd: 0,
+        duration_ms: 0,
+        subtype: 'error',
+      };
+    } else {
+      // Clean exit without a result event — synthesize a success result using
+      // the most recent meaningful assistant content as the completion signal.
+      yield {
+        type: 'result' as const,
+        result: lastAssistantContent || 'Gemini execution completed',
+        total_cost_usd: 0,
+        duration_ms: 0,
+        subtype: 'success',
       };
     }
-
-    yield {
-      type: 'result' as const,
-      total_cost_usd: 0,
-      duration_ms: 0,
-      subtype: 'error',
-    };
   }
 }
