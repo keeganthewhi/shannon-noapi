@@ -130,19 +130,28 @@ pnpm build
 
 ### Configure
 
+The easy path — auto-detect everything you already have:
+
+```bash
+./shannon setup
+```
+
+This scans your PATH for `claude` / `codex` / `gemini`, checks `~/.claude/`, `~/.codex/`, `~/.gemini/` for live credentials, and writes `.env` for you. No editing required. The worker reads the live OAuth token on every run, so refreshes on the host automatically propagate.
+
+If you want to bypass agent CLIs and use an API key or custom provider, edit `.env` manually instead:
+
 ```bash
 cp .env.example .env
 ```
 
-Edit `.env` — pick ONE:
-
 | You Have | Set In .env |
 |----------|-------------|
-| Claude Max/Pro | `CLAUDE_CODE_OAUTH_TOKEN=<token>` |
+| Claude Code logged in on host | *(nothing — `./shannon setup` handles it)* |
+| Codex logged in on host | *(nothing — `./shannon setup` handles it)* |
+| Gemini logged in on host | *(nothing — `./shannon setup` handles it)* |
 | Anthropic API key | `ANTHROPIC_API_KEY=<key>` |
-| ChatGPT Plus (Codex) | `SHANNON_AGENT_CLI=codex` |
-| Google account (Gemini) | `SHANNON_AGENT_CLI=gemini` |
-| OpenAI API key | `OPENAI_API_KEY=<key>` + `--router` flag |
+| OpenAI API key | `OPENAI_API_KEY=<key>` + `ROUTER_DEFAULT=openai,gpt-5.2` |
+| OpenRouter API key | `OPENROUTER_API_KEY=<key>` + `ROUTER_DEFAULT=...` |
 
 ### Run
 

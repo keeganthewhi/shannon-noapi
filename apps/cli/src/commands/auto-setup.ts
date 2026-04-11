@@ -198,12 +198,37 @@ export function autoSetup(): void {
     selected = agents[0]!;
   }
 
+  // 4. Refuse to write an unauthenticated .env — that creates a confusing state
+  // where `./shannon setup` succeeds but `./shannon start` fails mid-preflight.
+  // Tell the user exactly how to log in instead.
   if (!selected.hasAuth) {
-    console.warn(`WARNING: ${selected.name} is installed but not authenticated.`);
-    console.warn(`Run '${selected.name}' once to log in, then run './shannon setup' again.\n`);
+    console.error(`\nERROR: ${selected.name} is installed but not authenticated.`);
+    console.error('');
+    const loginInstructions: Record<string, string[]> = {
+      claude: [
+        "  1. Run 'claude' once in a terminal",
+        '  2. Follow the browser sign-in prompt for Claude Max/Pro',
+        '  3. Re-run ./shannon setup',
+      ],
+      codex: [
+        "  1. Run 'codex' once in a terminal",
+        '  2. Follow the browser sign-in prompt for ChatGPT Plus/Pro',
+        '  3. Re-run ./shannon setup',
+      ],
+      gemini: [
+        "  1. Run 'gemini' once in a terminal",
+        '  2. Follow the browser sign-in prompt with your Google account',
+        '  3. Re-run ./shannon setup',
+      ],
+    };
+    for (const line of loginInstructions[selected.name] ?? []) {
+      console.error(line);
+    }
+    console.error('');
+    process.exit(1);
   }
 
-  // 4. Write .env
+  // 5. Write .env
   const envContent = selected.envLines.join('\n') + '\n';
   const envPath = path.resolve('.env');
 
