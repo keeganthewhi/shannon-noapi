@@ -22,6 +22,7 @@ import { lookup } from 'node:dns/promises';
 import fs from 'node:fs/promises';
 import http from 'node:http';
 import https from 'node:https';
+import { join } from 'node:path';
 import type { SDKAssistantMessageError } from '../ai/claude-code-cli.js';
 import { query } from '../ai/claude-code-cli.js';
 import { resolveAgentCLI } from '../ai/cli-adapter.js';
@@ -300,11 +301,24 @@ async function validateCredentials(logger: ActivityLogger): Promise<Result<void,
     return ok(undefined);
   }
 
-  // 4. Check that at least one credential is present
-  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN) {
+  // 4. Check that at least one credential source is present. In addition to env
+  // vars, accept a mounted ~/.claude/.credentials.json — prepareClaudeHome() copies
+  // it into the writable scratch HOME and Claude Code reads the live OAuth token
+  // from there. Env-based tokens go stale within hours; mounted credentials stay
+  // fresh because the host refreshes them in place.
+  const mountedClaudeCreds = join(process.env.HOME || '/tmp', '.claude', '.credentials.json');
+  let hasMountedClaudeCreds = false;
+  try {
+    await fs.access(mountedClaudeCreds);
+    hasMountedClaudeCreds = true;
+  } catch {
+    // No mounted credentials
+  }
+
+  if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN && !hasMountedClaudeCreds) {
     return err(
       new PentestError(
-        'No API credentials found. Set ANTHROPIC_API_KEY or CLAUDE_CODE_OAUTH_TOKEN in .env (or use CLAUDE_CODE_USE_BEDROCK=1 for AWS Bedrock, or CLAUDE_CODE_USE_VERTEX=1 for Google Vertex AI)',
+        'No API credentials found. Run `./shannon setup` after logging in with `claude`, or set ANTHROPIC_API_KEY / CLAUDE_CODE_OAUTH_TOKEN in .env (or use CLAUDE_CODE_USE_BEDROCK=1 / CLAUDE_CODE_USE_VERTEX=1).',
         'config',
         false,
         {},
@@ -314,7 +328,11 @@ async function validateCredentials(logger: ActivityLogger): Promise<Result<void,
   }
 
   // 5. Validate via SDK query
-  const authType = process.env.CLAUDE_CODE_OAUTH_TOKEN ? 'OAuth token' : 'API key';
+  const authType = process.env.CLAUDE_CODE_OAUTH_TOKEN
+    ? 'OAuth token'
+    : process.env.ANTHROPIC_API_KEY
+      ? 'API key'
+      : 'mounted Claude credentials';
   logger.info(`Validating ${authType} via SDK...`);
 
   try {

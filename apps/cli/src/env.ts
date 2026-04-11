@@ -5,6 +5,9 @@
  * NPX mode: fills gaps from ~/.shannon/config.toml (no .env).
  */
 
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import dotenv from 'dotenv';
 import { resolveConfig } from './config/resolver.js';
 import { getMode } from './mode.js';
@@ -108,6 +111,27 @@ export function validateCredentials(): CredentialValidation {
       process.env.ANTHROPIC_API_KEY = `${agentCLI}-mode`;
     }
     return { valid: true, mode: 'api-key' };
+  }
+
+  // Claude CLI: if the host has a mounted ~/.claude/.credentials.json, the worker
+  // container reads the live token through the bind mount (plus prepareClaudeHome
+  // copying it to a writable scratch). No API key or OAuth token needs to live in
+  // .env — that would go stale within hours as Claude refreshes its OAuth token.
+  // Do NOT plant a placeholder here: Claude Code reads ANTHROPIC_API_KEY directly
+  // and would treat any placeholder as the real (invalid) key.
+  if (agentCLI === 'claude' || (!agentCLI && !detectProviders().length)) {
+    try {
+      const home = os.homedir();
+      const credsPath = path.join(home, '.claude', '.credentials.json');
+      if (fs.existsSync(credsPath)) {
+        const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
+        if (creds?.claudeAiOauth?.accessToken) {
+          return { valid: true, mode: 'oauth' };
+        }
+      }
+    } catch {
+      // Fall through to the normal checks below
+    }
   }
 
   // Reject multiple providers

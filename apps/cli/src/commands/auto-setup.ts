@@ -39,12 +39,14 @@ function detectClaude(): DetectedAgent | null {
   const envLines: string[] = ['SHANNON_AGENT_CLI=claude', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS=64000'];
   let hasAuth = false;
 
+  // Prefer mounted credentials over a snapshot in .env — Claude Code refreshes
+  // OAuth tokens frequently and a snapshot goes stale within hours. The worker
+  // container reads the live .credentials.json through the ~/.claude bind mount
+  // (with a writable HOME redirect so session-env can be created).
   if (fs.existsSync(credsPath)) {
     try {
       const creds = JSON.parse(fs.readFileSync(credsPath, 'utf-8'));
-      const token = creds?.claudeAiOauth?.accessToken;
-      if (token) {
-        envLines.unshift(`CLAUDE_CODE_OAUTH_TOKEN=${token}`);
+      if (creds?.claudeAiOauth?.accessToken) {
         hasAuth = true;
       }
     } catch {
@@ -52,7 +54,7 @@ function detectClaude(): DetectedAgent | null {
     }
   }
 
-  // Check for API key in environment
+  // Fall back to API key only if no OAuth credentials file exists
   if (!hasAuth && process.env.ANTHROPIC_API_KEY) {
     envLines.unshift(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
     hasAuth = true;
