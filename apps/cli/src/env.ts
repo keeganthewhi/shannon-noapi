@@ -36,6 +36,9 @@ const FORWARD_VARS = [
   'CODEX_BINARY',
   'GEMINI_BINARY',
   'CLAUDE_CODE_BINARY',
+  'CODEX_MODEL',
+  'GEMINI_MODEL',
+  'GEMINI_DEBUG_DUMP',
 ] as const;
 
 /**

@@ -180,6 +180,9 @@ export async function runClaudePrompt(
     'CODEX_BINARY',
     'GEMINI_BINARY',
     'CLAUDE_CODE_BINARY',
+    'CODEX_MODEL',
+    'GEMINI_MODEL',
+    'GEMINI_DEBUG_DUMP',
   ];
   for (const name of passthroughVars) {
     const val = process.env[name];

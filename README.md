@@ -200,6 +200,22 @@ workspaces/<workspace>/deliverables/
 
 All three agent CLIs are pre-installed in Shannon's Docker image. Host credentials are mounted automatically.
 
+### Picking a specific model
+
+Shannon drives each agent CLI through its own default model. If you want to override that — to use a cheaper tier, to switch to a newer release, or to dodge a per-model rate limit — set a model env var before running `./shannon start`:
+
+| Agent | Env var | Example |
+|---|---|---|
+| **Codex** | `CODEX_MODEL` | `CODEX_MODEL=gpt-5.2 ./shannon start -r /path/to/repo` |
+| **Gemini** | `GEMINI_MODEL` | `GEMINI_MODEL=gemini-2.5-pro ./shannon start -r /path/to/repo` |
+| **Claude Code** | (not supported — Claude Code CLI uses its bundled model tiers) | — |
+
+**Why you'd want this**: Gemini and Codex both enforce per-model daily quotas. When you burn through one, another is usually still fresh, and Shannon's default might not be the best match for what you have available. The env var is forwarded into the worker container automatically — no `.env` edit needed.
+
+**Available Gemini models** (as of late 2025): `gemini-3-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`. Run `gemini -m <name> -p "ok"` from a terminal to check which ones have quota.
+
+**Available Codex models**: `gpt-5.2`, `gpt-5-mini`, `o3`, etc. Run `codex --help` for the current list.
+
 ## Supported Targets
 
 | Target | Command |

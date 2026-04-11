@@ -46,9 +46,18 @@ function buildArgs(prompt: string, options: ClaudeCodeOptions): string[] {
     '--yolo',
   ];
 
-  // Only pass -m if it's a Gemini model (not Anthropic defaults)
-  if (options.model && !options.model.startsWith('claude-')) {
-    args.push('-m', options.model);
+  // Model selection priority:
+  //   1. GEMINI_MODEL env var  — explicit per-run override, lets users pick
+  //      a model with available quota when the default is exhausted.
+  //   2. options.model         — only when Shannon passes a non-Claude name
+  //      (Shannon's resolveModel() normally returns claude-*, which Gemini
+  //      can't load, so those are silently skipped).
+  //   3. Gemini CLI's default  — no -m flag, Gemini picks its own default.
+  const geminiModel =
+    process.env.GEMINI_MODEL?.trim() ||
+    (options.model && !options.model.startsWith('claude-') ? options.model : undefined);
+  if (geminiModel) {
+    args.push('-m', geminiModel);
   }
 
   // Gemini uses --include-directories instead of --cwd

@@ -73,9 +73,19 @@ function buildArgs(prompt: string, options: ClaudeCodeOptions): string[] {
     '--skip-git-repo-check',
   ];
 
-  // Only pass --model if it's an OpenAI model (not Anthropic defaults)
-  if (options.model && !options.model.startsWith('claude-')) {
-    args.push('--model', options.model);
+  // Model selection priority:
+  //   1. CODEX_MODEL env var  — explicit per-run override, useful when the
+  //      default model is rate-limited or when the user wants a specific model
+  //      (gpt-5.2, o3, etc.).
+  //   2. options.model        — only when Shannon passes a non-Claude name
+  //      (Shannon's resolveModel() normally returns claude-*, which Codex
+  //      can't load, so those are silently skipped).
+  //   3. Codex CLI's default  — no --model flag, Codex picks its own default.
+  const codexModel =
+    process.env.CODEX_MODEL?.trim() ||
+    (options.model && !options.model.startsWith('claude-') ? options.model : undefined);
+  if (codexModel) {
+    args.push('--model', codexModel);
   }
 
   if (options.cwd) {
