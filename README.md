@@ -58,6 +58,8 @@ Your AI Agent:
 
 ## Quick Start
 
+**Requires:** [Docker Desktop](https://docs.docker.com/get-docker/) (running), [Node.js 18+](https://nodejs.org/), [pnpm](https://pnpm.io/) (`npm i -g pnpm`), and at least one agent CLI logged in on your host — `claude` / `codex` / `gemini`.
+
 ```bash
 git clone https://github.com/keeganthewhi/shannon-noapi.git
 cd shannon-noapi
