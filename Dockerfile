@@ -147,9 +147,11 @@ COPY --from=builder /app/apps/cli/package.json /app/apps/cli/package.json
 RUN npm install -g @anthropic-ai/claude-code@2.1.84 @playwright/cli@0.1.1 && \
     npm install -g @openai/codex@latest || true && \
     npm install -g @google/gemini-cli@latest || true
-RUN mkdir -p /tmp/.claude/skills && \
+# Stage the playwright-cli skill outside /tmp/.claude so the runtime bind mount
+# doesn't shadow it. Adapters copy it into the writable .claude scratch dir at spawn time.
+RUN mkdir -p /opt/shannon/claude-skills && \
     playwright-cli install --skills && \
-    cp -r .claude/skills/playwright-cli /tmp/.claude/skills/ && \
+    cp -r .claude/skills/playwright-cli /opt/shannon/claude-skills/ && \
     rm -rf .claude
 
 # Symlink CLI tools onto PATH
@@ -165,7 +167,7 @@ RUN mkdir -p /app/sessions /app/repos /app/workspaces && \
     chmod 777 /tmp/.cache && \
     chmod 777 /tmp/.config && \
     chmod 777 /tmp/.npm && \
-    chown -R pentest:pentest /app /tmp/.claude
+    chown -R pentest:pentest /app /opt/shannon
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh

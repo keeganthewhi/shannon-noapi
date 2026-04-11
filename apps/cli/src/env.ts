@@ -97,6 +97,19 @@ function detectProviders(): string[] {
  * Validate that exactly one authentication method is configured.
  */
 export function validateCredentials(): CredentialValidation {
+  // Non-Claude agents (Codex/Gemini) authenticate via their own CLI credentials,
+  // which are mounted read-only into the worker container. Bypass Anthropic-style
+  // credential validation — the worker's preflight already handles auth for these.
+  const agentCLI = process.env.SHANNON_AGENT_CLI?.toLowerCase().trim();
+  if (agentCLI === 'codex' || agentCLI === 'gemini') {
+    // Placeholder so downstream code (Temporal client, env forwarding) doesn't NPE
+    // on the absent Anthropic key. The worker never consults this value for codex/gemini.
+    if (!process.env.ANTHROPIC_API_KEY) {
+      process.env.ANTHROPIC_API_KEY = `${agentCLI}-mode`;
+    }
+    return { valid: true, mode: 'api-key' };
+  }
+
   // Reject multiple providers
   const providers = detectProviders();
   if (providers.length > 1) {

@@ -4,6 +4,7 @@
 
 import { spawn, type ChildProcess } from 'node:child_process';
 import { createInterface } from 'node:readline';
+import { join } from 'node:path';
 
 /**
  * Mirrors the SDK's JsonSchemaOutputFormat type.
@@ -64,6 +65,66 @@ export type CLIMessage =
       structured_output?: unknown;
       [key: string]: unknown;
     };
+
+/**
+ * Docker workaround: the host's ~/.claude is bind-mounted read-only at /tmp/.claude.
+ * Claude Code's Bash tool creates ephemeral session directories under
+ * ~/.claude/session-env/<uuid>/ for every spawned shell. On a RO bind mount
+ * `mkdir` hits EROFS, the subagent decides "Bash is broken", and falls back to
+ * declaring live exploitation blocked.
+ *
+ * Copy the critical credential/config files into a writable scratch .claude and
+ * expose the baked-in playwright-cli skill from /opt/shannon/claude-skills, then
+ * point HOME there so Claude Code can freely create session-env, shell-snapshots,
+ * todos, and every other bit of runtime state it needs.
+ *
+ * Returns the writable HOME path, or null on failure (caller leaves HOME alone,
+ * i.e. we run in local dev where ~/.claude is already writable).
+ */
+async function prepareClaudeHome(): Promise<string | null> {
+  try {
+    const { mkdirSync, copyFileSync, existsSync, cpSync } = await import('node:fs');
+    const mountedClaude = join(process.env.HOME || '/tmp', '.claude');
+    if (!existsSync(mountedClaude)) return null;
+
+    const writableHome = '/tmp/.claude-parent';
+    const writableClaude = join(writableHome, '.claude');
+
+    // Writable subdirs Claude Code touches during normal operation. Pre-creating
+    // them avoids first-call mkdir races if Claude assumes the parent exists.
+    for (const sub of ['', 'session-env', 'shell-snapshots', 'todos', 'projects', 'tasks', 'telemetry', 'statsig', 'skills']) {
+      mkdirSync(join(writableClaude, sub), { recursive: true });
+    }
+
+    // Copy authentication and essential config — everything else Claude Code
+    // regenerates at runtime under the writable home.
+    for (const file of ['.credentials.json', 'settings.json', 'CLAUDE.md']) {
+      const src = join(mountedClaude, file);
+      if (existsSync(src)) {
+        try {
+          copyFileSync(src, join(writableClaude, file));
+        } catch {
+          // Skip individual copy failures — .credentials.json is the only critical one
+        }
+      }
+    }
+
+    // Baked-in playwright-cli skill lives outside the mount so it survives runtime
+    // shadowing. Copy it into the writable skills dir if present.
+    const bakedSkill = '/opt/shannon/claude-skills/playwright-cli';
+    if (existsSync(bakedSkill)) {
+      try {
+        cpSync(bakedSkill, join(writableClaude, 'skills', 'playwright-cli'), { recursive: true });
+      } catch {
+        // Non-fatal — Claude can drive playwright-cli via Bash without the skill doc
+      }
+    }
+
+    return writableHome;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Resolve the path to the `claude` CLI binary.
@@ -187,6 +248,14 @@ export async function* query(params: {
   const env = buildEnv(options);
   const cwd = options.cwd || process.cwd();
   const claudeBin = resolveClaudeBinary();
+
+  // Redirect HOME to a writable copy of ~/.claude so the Bash tool can create
+  // its session-env directories. Without this, Claude Code subagents hit EROFS
+  // on the :ro mount and mark Bash as broken, blocking live exploitation.
+  const writableHome = await prepareClaudeHome();
+  if (writableHome) {
+    env.HOME = writableHome;
+  }
 
   let proc: ChildProcess;
 
