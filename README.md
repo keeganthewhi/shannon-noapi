@@ -35,7 +35,7 @@ This fork works with **any coding agent CLI** — no API credits needed if you h
 | **Targets** | Any web app — live URL, localhost, or code-only |
 | **Cost** | $0 extra with Claude Max/Pro, ChatGPT Plus, or Gemini |
 | **Output** | Full security report with proof-of-concept exploits |
-| **Runtime** | ~1-1.5 hours per full scan |
+| **Runtime** | ~1–6 hours per full scan (depends on target size) |
 
 ## How It Works
 
