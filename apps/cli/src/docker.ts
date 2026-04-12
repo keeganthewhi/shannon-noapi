@@ -282,13 +282,16 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
   // seccomp=unconfined was REMOVED in the prior commit — default Docker
   // seccomp profile (>300 blocked syscalls) is sufficient for all Shannon
   // operations including Playwright/Chromium.
+  // Container hardening. The entrypoint uses `su -m pentest` to drop
+  // from root to the pentest user, which requires SETUID + SETGID caps.
+  // --cap-drop=ALL then --cap-add for only those two is the minimum set.
+  // --security-opt=no-new-privileges is NOT compatible with the su-based
+  // user switch so it's omitted here.
   args.push(
     '--shm-size', '2gb',
     '--cap-drop=ALL',
-    '--security-opt=no-new-privileges',
-    '--read-only',
-    '--tmpfs', '/tmp:size=2g,mode=1777',
-    '--tmpfs', '/home:size=256m,mode=755',
+    '--cap-add=SETUID',
+    '--cap-add=SETGID',
   );
 
   // Image
