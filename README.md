@@ -1,8 +1,8 @@
 <div align="center">
 
-# Shannon for CLI
+# Shannon — No API Keys Required
 
-### AI Security Scanner That Works With Any Coding Agent
+### The Original Shannon AI Security Scanner, Adapted for CLI Subscriptions
 
 <br />
 
@@ -25,9 +25,27 @@ Tell your AI agent: *"Scan my project for security vulnerabilities"* — and Sha
 
 ## What Is This?
 
-Shannon is an AI-powered security scanner. Point it at your source code (and optionally a live website), and it finds real vulnerabilities with proof-of-concept exploits.
+This is the **original [Shannon](https://github.com/KeygraphHQ/shannon)** by [Keygraph](https://keygraph.io) — the AI-powered penetration testing framework — adapted to work with **any coding agent CLI subscription** instead of requiring API keys.
 
-This fork works with **any coding agent CLI** — no API credits needed if you have a subscription.
+The upstream Shannon requires direct API access (Anthropic API key, OpenAI API key, etc.), which costs per-token. This fork replaces the API-key authentication layer with CLI-based authentication, so if you already have a **Claude Max/Pro**, **ChatGPT Plus/Pro**, or **Google Gemini** subscription, you can run Shannon at **$0 extra cost** — the same AI models, the same 5-phase security pipeline, just billed through your existing subscription instead of a separate API budget.
+
+### What changed from the original
+
+| | Original Shannon | This Fork |
+|---|---|---|
+| **Repo** | [KeygraphHQ/shannon](https://github.com/KeygraphHQ/shannon) | [keeganthewhi/shannon-noapi](https://github.com/keeganthewhi/shannon-noapi) |
+| **Auth** | API keys (`ANTHROPIC_API_KEY`, etc.) | CLI subscriptions (`claude` / `codex` / `gemini` logged in on host) |
+| **Cost** | Per-token API charges | $0 extra with existing subscription |
+| **AI Backend** | Direct Anthropic/OpenAI/Google API calls | Agent CLI subprocesses (same models, same quality) |
+| **Pipeline** | Identical 5-phase pentest pipeline | Identical 5-phase pentest pipeline |
+| **Output** | Same report format | Same report format |
+| **Docker** | Same worker image | Same worker image + container hardening |
+
+Everything else — the 5-phase pipeline, the multi-agent architecture, the Temporal orchestration, the Playwright-based exploitation, the report format — is **identical to upstream Shannon**. The fork tracks upstream and merges regularly.
+
+### How it works
+
+Shannon's pipeline uses AI agents for each phase. The original calls the AI vendor's HTTP API directly. This fork instead spawns the vendor's CLI tool (`claude`, `codex`, or `gemini`) as a subprocess inside the Docker worker container. The CLI tool handles authentication through its own credential files (`~/.claude/.credentials.json`, `~/.codex/auth.json`, `~/.gemini/oauth_creds.json`) which are bind-mounted read-only from the host. No API keys are ever written to disk or passed as environment variables.
 
 | Feature | Details |
 |---------|---------|
@@ -172,7 +190,6 @@ cp .env.example .env
 
 # Monitor
 ./shannon logs <workspace>
-open http://localhost:8233
 
 # Stop
 ./shannon stop
@@ -200,23 +217,17 @@ workspaces/<workspace>/deliverables/
 | **OpenAI Codex** | ChatGPT Plus/Pro | Browser auth auto-detected from `~/.codex/` |
 | **Google Gemini** | Google account | Browser auth auto-detected from `~/.gemini/` |
 
-All three agent CLIs are pre-installed in Shannon's Docker image. Host credentials are mounted automatically.
+All three agent CLIs are pre-installed in Shannon's Docker image. Host credentials are mounted read-only — tokens refresh on the host and propagate automatically.
 
 ### Picking a specific model
 
-Shannon drives each agent CLI through its own default model. If you want to override that — to use a cheaper tier, to switch to a newer release, or to dodge a per-model rate limit — set a model env var before running `./shannon start`:
+Shannon drives each agent CLI through its own default model. Override with env vars:
 
 | Agent | Env var | Example |
 |---|---|---|
 | **Codex** | `CODEX_MODEL` | `CODEX_MODEL=gpt-5.2 ./shannon start -r /path/to/repo` |
 | **Gemini** | `GEMINI_MODEL` | `GEMINI_MODEL=gemini-2.5-pro ./shannon start -r /path/to/repo` |
 | **Claude Code** | (not supported — Claude Code CLI uses its bundled model tiers) | — |
-
-**Why you'd want this**: Gemini and Codex both enforce per-model daily quotas. When you burn through one, another is usually still fresh, and Shannon's default might not be the best match for what you have available. The env var is forwarded into the worker container automatically — no `.env` edit needed.
-
-**Available Gemini models** (as of late 2025): `gemini-3-pro-preview`, `gemini-3-flash-preview`, `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`. Run `gemini -m <name> -p "ok"` from a terminal to check which ones have quota.
-
-**Available Codex models**: `gpt-5.2`, `gpt-5-mini`, `o3`, etc. Run `codex --help` for the current list.
 
 ## Supported Targets
 
@@ -279,7 +290,7 @@ authentication:
 
 ## Credits
 
-Based on [Shannon](https://github.com/KeygraphHQ/shannon) by [Keygraph](https://keygraph.io).
+This fork is based on [Shannon](https://github.com/KeygraphHQ/shannon) by [Keygraph](https://keygraph.io). The original Shannon is the pioneering AI-powered penetration testing framework. This fork adapts it for CLI-subscription-based authentication — all credit for the core pipeline, multi-agent architecture, Temporal orchestration, and exploitation methodology belongs to the Keygraph team.
 
 ## License
 
