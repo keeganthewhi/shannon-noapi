@@ -182,10 +182,13 @@ ENV SHANNON_DOCKER=true
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_MCP_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV npm_config_cache=/tmp/.npm
-# /home/pentest is created by the pentest user setup above.
-# Using /tmp as HOME was causing tools to write config to an
-# unpredictable location and polluted the shared /tmp namespace.
-ENV HOME=/home/pentest
+# HOME=/tmp is intentional: Shannon's docker.ts mounts host credential
+# directories (~/.claude, ~/.codex, ~/.gemini) into /tmp/.claude,
+# /tmp/.codex, /tmp/.gemini. The worker's preflight and CLI adapters
+# look for credentials at $HOME/.claude/. Setting HOME=/tmp makes
+# these paths align. Changing HOME to /home/pentest breaks credential
+# discovery because the mount point doesn't move with HOME.
+ENV HOME=/tmp
 ENV XDG_CACHE_HOME=/tmp/.cache
 ENV XDG_CONFIG_HOME=/tmp/.config
 
