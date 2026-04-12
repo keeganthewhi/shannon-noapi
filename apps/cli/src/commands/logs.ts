@@ -59,6 +59,17 @@ function resolveLogFile(workspaceId: string): string {
 }
 
 export function logs(workspaceId: string): void {
+  // Validate workspace ID — prevent path traversal
+  if (
+    workspaceId.includes('..') ||
+    workspaceId.includes('/') ||
+    workspaceId.includes('\\') ||
+    !/^[a-zA-Z0-9._-]+$/.test(workspaceId)
+  ) {
+    console.error(`ERROR: Invalid workspace ID "${workspaceId}"`);
+    process.exit(1);
+  }
+
   const logFile = resolveLogFile(workspaceId);
   let position = 0;
 
