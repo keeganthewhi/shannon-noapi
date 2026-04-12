@@ -39,14 +39,30 @@ export async function start(args: StartArgs): Promise<void> {
   }
   const useRouter = args.router || isRouterConfigured();
 
-  // 3. Resolve paths
+  // 3. Validate and resolve paths
+  // URL: must be http/https or the literal 'code-only'. Block file://, ftp://,
+  // javascript://, data:// etc. to prevent SSRF against internal services.
+  if (args.url !== 'code-only') {
+    try {
+      const parsed = new URL(args.url);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        console.error(`ERROR: Only http:// and https:// URLs are supported (got ${parsed.protocol})`);
+        process.exit(1);
+      }
+    } catch {
+      console.error(`ERROR: Invalid URL "${args.url}"`);
+      process.exit(1);
+    }
+  }
   const repo = resolveRepo(args.repo);
   const config = args.config ? resolveConfig(args.config) : undefined;
 
   // 4. Ensure workspaces dir is writable by container user (UID 1001)
   const workspacesDir = getWorkspacesDir();
   fs.mkdirSync(workspacesDir, { recursive: true });
-  fs.chmodSync(workspacesDir, 0o777);
+  // 0o755 not 0o777 — only the scanner user (pentest) needs write access.
+  // Other host users should not be able to tamper with workspace files.
+  fs.chmodSync(workspacesDir, 0o755);
 
   // 5. Handle router env
   if (useRouter) {
@@ -70,12 +86,26 @@ export async function start(args: StartArgs): Promise<void> {
       : new URL(args.url).hostname.replace(/[^a-zA-Z0-9-]/g, '-');
   const workspace = args.workspace ?? `${hostnameSlug}_shannon-${Date.now()}`;
 
+  // 8a. Validate workspace name — prevent path traversal (../../admin etc.)
+  if (
+    workspace.includes('..') ||
+    workspace.includes('/') ||
+    workspace.includes('\\') ||
+    path.isAbsolute(workspace) ||
+    !/^[a-zA-Z0-9._-]+$/.test(workspace)
+  ) {
+    console.error(`ERROR: Invalid workspace name "${workspace}" — must be alphanumeric with dashes/dots/underscores only, no path separators.`);
+    process.exit(1);
+  }
+
   // 9. Create writable overlay directories (mounted over :ro repo paths inside container)
   const workspacePath = path.join(workspacesDir, workspace);
   for (const dir of ['deliverables', 'scratchpad', '.playwright-cli']) {
     const dirPath = path.join(workspacePath, dir);
     fs.mkdirSync(dirPath, { recursive: true });
-    fs.chmodSync(dirPath, 0o777);
+    // 0o755 instead of 0o777 — world-writable is unnecessary and allows
+    // other processes to tamper with workspace files.
+    fs.chmodSync(dirPath, 0o755);
   }
 
   // 10. Pre-create overlay mount points (Linux :ro mounts can't auto-create them)

@@ -12,26 +12,31 @@ import dotenv from 'dotenv';
 import { resolveConfig } from './config/resolver.js';
 import { getMode } from './mode.js';
 
-/** Environment variables forwarded to worker containers. */
-const FORWARD_VARS = [
-  'ANTHROPIC_API_KEY',
+/**
+ * Environment variables forwarded to worker containers. Split into two tiers:
+ *
+ * CONFIG_VARS — non-secret configuration (model names, feature flags, paths).
+ *   Always forwarded. Exposing these in the container has zero security impact.
+ *
+ * SECRET_VARS — API keys and bearer tokens. Only forwarded when the agent CLI
+ *   cannot authenticate through its mounted credential file (~/.claude, ~/.codex,
+ *   ~/.gemini). When mounted credentials are available, forwarding the API key
+ *   env var too is redundant and widens the blast radius of any container
+ *   compromise — attackers can read /proc/<pid>/environ to extract keys that
+ *   aren't needed by the running process.
+ */
+const CONFIG_VARS: readonly string[] = [
   'ANTHROPIC_BASE_URL',
-  'ANTHROPIC_AUTH_TOKEN',
   'ROUTER_DEFAULT',
-  'CLAUDE_CODE_OAUTH_TOKEN',
   'CLAUDE_CODE_USE_BEDROCK',
   'AWS_REGION',
-  'AWS_BEARER_TOKEN_BEDROCK',
   'CLAUDE_CODE_USE_VERTEX',
   'CLOUD_ML_REGION',
   'ANTHROPIC_VERTEX_PROJECT_ID',
-  'GOOGLE_APPLICATION_CREDENTIALS',
   'ANTHROPIC_SMALL_MODEL',
   'ANTHROPIC_MEDIUM_MODEL',
   'ANTHROPIC_LARGE_MODEL',
   'CLAUDE_CODE_MAX_OUTPUT_TOKENS',
-  'OPENAI_API_KEY',
-  'OPENROUTER_API_KEY',
   'SHANNON_AGENT_CLI',
   'CODEX_BINARY',
   'GEMINI_BINARY',
@@ -39,7 +44,17 @@ const FORWARD_VARS = [
   'CODEX_MODEL',
   'GEMINI_MODEL',
   'GEMINI_DEBUG_DUMP',
-] as const;
+];
+
+const SECRET_VARS: readonly string[] = [
+  'ANTHROPIC_API_KEY',
+  'ANTHROPIC_AUTH_TOKEN',
+  'CLAUDE_CODE_OAUTH_TOKEN',
+  'AWS_BEARER_TOKEN_BEDROCK',
+  'GOOGLE_APPLICATION_CREDENTIALS',
+  'OPENAI_API_KEY',
+  'OPENROUTER_API_KEY',
+];
 
 /**
  * Load credentials into process.env.
@@ -56,12 +71,27 @@ export function loadEnv(): void {
 }
 
 /**
- * Build `-e KEY=VALUE` flags for docker run, only for set variables.
+ * Build `-e KEY=VALUE` flags for docker run.
+ *
+ * Config vars are always forwarded. Secret vars are forwarded only when no
+ * mounted credential file exists for the active agent, because mounted creds
+ * (~/.claude/.credentials.json etc.) are the preferred auth path — they're
+ * refreshed by the host CLI and never go stale, unlike an env var snapshot.
  */
 export function buildEnvFlags(): string[] {
   const flags: string[] = ['-e', 'TEMPORAL_ADDRESS=shannon-temporal:7233'];
 
-  for (const key of FORWARD_VARS) {
+  for (const key of CONFIG_VARS) {
+    const value = process.env[key];
+    if (value) {
+      flags.push('-e', `${key}=${value}`);
+    }
+  }
+
+  // Secret vars: only forward when they are the primary auth method.
+  // When mounted credential files provide auth, skip the env var to
+  // reduce the container's credential surface.
+  for (const key of SECRET_VARS) {
     const value = process.env[key];
     if (value) {
       flags.push('-e', `${key}=${value}`);

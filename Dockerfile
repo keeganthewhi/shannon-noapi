@@ -160,14 +160,17 @@ RUN ln -s /app/apps/worker/dist/scripts/save-deliverable.js /usr/local/bin/save-
     ln -s /app/apps/worker/dist/scripts/generate-totp.js /usr/local/bin/generate-totp && \
     chmod +x /app/apps/worker/dist/scripts/generate-totp.js
 
-# Create directories for session data and ensure proper permissions
+# Create directories for session data and ensure proper permissions.
+# 755 (not 777) — world-writable is unnecessary and expands the blast
+# radius of any code execution inside the container. The pentest user
+# owns everything it needs; other processes do not need write access.
 RUN mkdir -p /app/sessions /app/repos /app/workspaces && \
     mkdir -p /tmp/.cache /tmp/.config /tmp/.npm && \
-    chmod 777 /app && \
-    chmod 777 /tmp/.cache && \
-    chmod 777 /tmp/.config && \
-    chmod 777 /tmp/.npm && \
-    chown -R pentest:pentest /app /opt/shannon
+    chmod 755 /app && \
+    chmod 755 /tmp/.cache && \
+    chmod 755 /tmp/.config && \
+    chmod 755 /tmp/.npm && \
+    chown -R pentest:pentest /app /opt/shannon /tmp/.cache /tmp/.config /tmp/.npm
 
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
@@ -179,7 +182,10 @@ ENV SHANNON_DOCKER=true
 ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 ENV PLAYWRIGHT_MCP_EXECUTABLE_PATH=/usr/bin/chromium-browser
 ENV npm_config_cache=/tmp/.npm
-ENV HOME=/tmp
+# /home/pentest is created by the pentest user setup above.
+# Using /tmp as HOME was causing tools to write config to an
+# unpredictable location and polluted the shared /tmp namespace.
+ENV HOME=/home/pentest
 ENV XDG_CACHE_HOME=/tmp/.cache
 ENV XDG_CONFIG_HOME=/tmp/.config
 

@@ -54,9 +54,12 @@ function detectClaude(): DetectedAgent | null {
     }
   }
 
-  // Fall back to API key only if no OAuth credentials file exists
+  // Fall back to API key only if no OAuth credentials file exists.
+  // SECURITY: we NO LONGER write the API key to .env — persisting secrets
+  // on disk in plaintext is a credential-exposure risk. The key stays in
+  // the process environment only, forwarded to the container at runtime.
   if (!hasAuth && process.env.ANTHROPIC_API_KEY) {
-    envLines.unshift(`ANTHROPIC_API_KEY=${process.env.ANTHROPIC_API_KEY}`);
+    console.log('  Note: ANTHROPIC_API_KEY detected in environment (will NOT be persisted to .env)');
     hasAuth = true;
   }
 
@@ -83,9 +86,9 @@ function detectCodex(): DetectedAgent | null {
     }
   }
 
-  // Check for API key in environment
+  // Check for API key in environment — NOT persisted to .env (same as claude above)
   if (!hasAuth && process.env.OPENAI_API_KEY) {
-    envLines.unshift(`OPENAI_API_KEY=${process.env.OPENAI_API_KEY}`);
+    console.log('  Note: OPENAI_API_KEY detected in environment (will NOT be persisted to .env)');
     hasAuth = true;
   }
 
@@ -107,10 +110,9 @@ function detectGemini(): DetectedAgent | null {
     hasAuth = true;
   }
 
-  // Check for API key in environment
+  // Check for API key in environment — NOT persisted to .env
   if (!hasAuth && (process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY)) {
-    const key = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
-    envLines.unshift(`GEMINI_API_KEY=${key}`);
+    console.log('  Note: GEMINI_API_KEY detected in environment (will NOT be persisted to .env)');
     hasAuth = true;
   }
 

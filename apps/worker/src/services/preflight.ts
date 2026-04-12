@@ -35,8 +35,35 @@ import { isRetryableError, PentestError } from './error-handling.js';
 
 const TARGET_URL_TIMEOUT_MS = 10_000;
 
+/**
+ * Check if an IP address is loopback OR in a private/reserved range.
+ * Covers RFC 1918, RFC 6598 (CGNAT), link-local, and IPv6 equivalents.
+ * Used to warn when the target URL resolves to an internal address —
+ * Shannon inside Docker typically can't reach host-local services
+ * without `host.docker.internal`.
+ */
+function isLoopbackOrPrivateAddress(address: string): boolean {
+  // IPv6 loopback
+  if (address === '::1' || address === '::' || address === '0:0:0:0:0:0:0:1') return true;
+  // IPv4 loopback + unspecified
+  if (address === '0.0.0.0' || address.startsWith('127.')) return true;
+  // RFC 1918 private ranges
+  if (address.startsWith('10.')) return true;
+  if (address.startsWith('192.168.')) return true;
+  if (/^172\.(1[6-9]|2\d|3[01])\./.test(address)) return true;
+  // RFC 6598 CGNAT
+  if (/^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./.test(address)) return true;
+  // Link-local
+  if (address.startsWith('169.254.')) return true;
+  // IPv6 private (fc00::/7, fe80::/10)
+  if (/^f[cd]/i.test(address)) return true;
+  if (/^fe[89ab]/i.test(address)) return true;
+  return false;
+}
+
+/** @deprecated Use isLoopbackOrPrivateAddress instead. */
 function isLoopbackAddress(address: string): boolean {
-  return address === '127.0.0.1' || address === '::1' || address === '0.0.0.0';
+  return isLoopbackOrPrivateAddress(address);
 }
 
 // === Repository Validation ===

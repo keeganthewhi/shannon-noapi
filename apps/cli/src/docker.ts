@@ -237,9 +237,14 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
     args.push('-v', `${opts.outputDir}:/app/output`);
   }
 
-  // Mount credentials file to fixed container path
+  // Mount GCP service account key at a randomized path so it's not at a
+  // predictable location an attacker can target. The GOOGLE_APPLICATION_CREDENTIALS
+  // env var (forwarded separately) tells the SDK where to find it.
   if (opts.credentials) {
-    args.push('-v', `${opts.credentials}:/app/credentials/google-sa-key.json:ro`);
+    const credSuffix = crypto.randomBytes(8).toString('hex');
+    const containerCredPath = `/tmp/.gcp-${credSuffix}/sa-key.json`;
+    args.push('-v', `${opts.credentials}:${containerCredPath}:ro`);
+    args.push('-e', `GOOGLE_APPLICATION_CREDENTIALS=${containerCredPath}`);
   }
 
   // Mount agent CLI credentials so Claude/Codex/Gemini can authenticate inside the container
@@ -262,8 +267,29 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
   // Environment
   args.push(...opts.envFlags);
 
-  // Container settings
-  args.push('--shm-size', '2gb', '--security-opt', 'seccomp=unconfined');
+  // Container hardening (defense-in-depth):
+  //   --cap-drop=ALL          — drop all Linux capabilities (no raw sockets,
+  //                             no ptrace, no bind to privileged ports)
+  //   --security-opt=no-new-privileges — prevent setuid/setgid escalation
+  //                             inside the container (e.g. suid binaries)
+  //   --read-only             — root filesystem is read-only; only explicitly
+  //                             mounted volumes + tmpfs are writable. Limits
+  //                             the blast radius of any RCE inside the container.
+  //   --tmpfs /tmp:size=2g    — writable /tmp via tmpfs (memory-backed, never
+  //                             touches disk). Needed by Node, Playwright,
+  //                             agent CLIs for scratch files.
+  //
+  // seccomp=unconfined was REMOVED in the prior commit — default Docker
+  // seccomp profile (>300 blocked syscalls) is sufficient for all Shannon
+  // operations including Playwright/Chromium.
+  args.push(
+    '--shm-size', '2gb',
+    '--cap-drop=ALL',
+    '--security-opt=no-new-privileges',
+    '--read-only',
+    '--tmpfs', '/tmp:size=2g,mode=1777',
+    '--tmpfs', '/home:size=256m,mode=755',
+  );
 
   // Image
   args.push(getWorkerImage(opts.version));

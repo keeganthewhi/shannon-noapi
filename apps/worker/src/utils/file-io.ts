@@ -53,11 +53,25 @@ export async function atomicWrite(filePath: string, data: object | string): Prom
 }
 
 /**
- * Read and parse JSON file
+ * Read and parse JSON file with prototype-pollution guard.
+ *
+ * JSON.parse can produce objects with __proto__ / constructor / prototype
+ * keys that pollute the global prototype chain when spread into other
+ * objects. Workspace JSON files (session.json, config) can be influenced
+ * by external input, so we reject polluting keys at the top level.
  */
 export async function readJson<T = unknown>(filePath: string): Promise<T> {
   const content = await fs.readFile(filePath, 'utf8');
-  return JSON.parse(content) as T;
+  const parsed: unknown = JSON.parse(content);
+  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const keys = Object.keys(parsed as Record<string, unknown>);
+    for (const key of keys) {
+      if (key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        throw new Error(`Prototype pollution attempt in ${filePath}: key "${key}"`);
+      }
+    }
+  }
+  return parsed as T;
 }
 
 /**

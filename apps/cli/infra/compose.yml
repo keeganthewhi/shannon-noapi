@@ -4,12 +4,13 @@ networks:
 
 services:
   temporal:
-    image: temporalio/temporal:latest
+    image: temporalio/temporal:1.26.2
     container_name: shannon-temporal
     command: ["server", "start-dev", "--db-filename", "/home/temporal/temporal.db", "--ip", "0.0.0.0"]
     ports:
       - "127.0.0.1:7233:7233"
-      - "127.0.0.1:8233:8233"
+      # Temporal Web UI removed — see docker-compose.yml for rationale.
+      # - "127.0.0.1:8233:8233"
     volumes:
       - temporal-data:/home/temporal
     healthcheck:
@@ -20,7 +21,7 @@ services:
       start_period: 30s
 
   router:
-    image: node:20-slim
+    image: node:20.19-slim
     container_name: shannon-router
     profiles: ["router"]
     command: >
@@ -34,7 +35,7 @@ services:
     volumes:
       - ./router-config.json:/config/router-config.json:ro
     environment:
-      - HOST=0.0.0.0
+      - HOST=127.0.0.1
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}

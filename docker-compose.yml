@@ -4,12 +4,17 @@ networks:
 
 services:
   temporal:
-    image: temporalio/temporal:latest
+    # Pinned version — :latest is a supply-chain risk (unpredictable upgrades,
+    # possible regressions, version-specific CVEs). Bump explicitly after testing.
+    image: temporalio/temporal:1.26.2
     container_name: shannon-temporal
     command: ["server", "start-dev", "--db-filename", "/home/temporal/temporal.db", "--ip", "0.0.0.0"]
     ports:
-      - "127.0.0.1:7233:7233"   # gRPC
-      - "127.0.0.1:8233:8233"   # Web UI (built-in)
+      - "127.0.0.1:7233:7233"   # gRPC — worker containers connect here
+      # Temporal Web UI removed from default binding. The UI exposes workflow
+      # payloads (target URLs, repo paths, agent output) without authentication.
+      # Uncomment for local debugging only:
+      # - "127.0.0.1:8233:8233"
     volumes:
       - temporal-data:/home/temporal
     healthcheck:
@@ -22,7 +27,8 @@ services:
   # Optional: claude-code-router for multi-model support
   # Start with: ROUTER=true ./shannon start ...
   router:
-    image: node:20-slim
+    # Pinned version — same supply-chain rationale as temporal above.
+    image: node:20.19-slim
     container_name: shannon-router
     profiles: ["router"]  # Only starts when explicitly requested
     command: >
@@ -36,7 +42,10 @@ services:
     volumes:
       - ./apps/cli/infra/router-config.json:/config/router-config.json:ro
     environment:
-      - HOST=0.0.0.0
+      # Bind to localhost inside the container network — 0.0.0.0 is unnecessary
+      # since only containers on shannon-net need to reach the router. The host
+      # port binding already handles localhost exposure.
+      - HOST=127.0.0.1
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY:-}

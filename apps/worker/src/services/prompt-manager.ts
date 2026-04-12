@@ -35,7 +35,10 @@ async function buildLoginInstructions(authentication: Authentication, logger: Ac
     const fullTemplate = await fs.readFile(loginInstructionsPath, 'utf8');
 
     const getSection = (content: string, sectionName: string): string => {
-      const regex = new RegExp(`<!-- BEGIN:${sectionName} -->([\\s\\S]*?)<!-- END:${sectionName} -->`, 'g');
+      // Escape regex metacharacters in sectionName to prevent ReDoS via
+      // crafted login_type values in config.yaml (e.g., "FORM)(?:.*{9999}")
+      const escaped = sectionName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(`<!-- BEGIN:${escaped} -->([\\s\\S]*?)<!-- END:${escaped} -->`, 'g');
       const match = regex.exec(content);
       return match?.[1]?.trim() ?? '';
     };
@@ -56,17 +59,36 @@ async function buildLoginInstructions(authentication: Authentication, logger: Ac
       loginInstructions = [commonSection, authSection, verificationSection].filter((section) => section).join('\n\n');
     }
 
-    // 4. Interpolate login flow and credential placeholders
+    // 4. Interpolate login flow and credential placeholders.
+    //
+    // SECURITY NOTE: credentials (password, TOTP secret) are embedded in
+    // the AI agent prompt because Shannon's login flow requires the agent
+    // to literally type them into the target app's form. This is inherent
+    // to the design — Shannon IS a pentest tool that needs real creds to
+    // test authenticated surfaces. The credentials may appear in:
+    //   - The agent's conversation log (workflow.log)
+    //   - Temporal workflow history (if UI is enabled)
+    //   - The agent's tool_use output in deliverables
+    //
+    // Mitigations applied:
+    //   - Container filesystem is read-only (--read-only)
+    //   - Container drops all capabilities (--cap-drop=ALL)
+    //   - Temporal Web UI port is removed from default compose
+    //   - Workspace dirs use 0o755 (not world-writable)
+    //   - Deliverables should be treated as confidential output
     let userInstructions = (authentication.login_flow ?? []).join('\n');
 
     if (authentication.credentials) {
       if (authentication.credentials.username) {
+        logger.warn('Interpolating USERNAME into agent prompt — will be visible in agent logs');
         userInstructions = userInstructions.replace(/\$username/g, authentication.credentials.username);
       }
       if (authentication.credentials.password) {
+        logger.warn('Interpolating PASSWORD into agent prompt — treat deliverables as confidential');
         userInstructions = userInstructions.replace(/\$password/g, authentication.credentials.password);
       }
       if (authentication.credentials.totp_secret) {
+        logger.warn('Interpolating TOTP SECRET into agent prompt — rotate after scan completes');
         userInstructions = userInstructions.replace(
           /\$totp/g,
           `generated TOTP code using secret "${authentication.credentials.totp_secret}"`,
