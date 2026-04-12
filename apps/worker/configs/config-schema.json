@@ -17,6 +17,7 @@
         "login_url": {
           "type": "string",
           "format": "uri",
+          "maxLength": 2048,
           "description": "URL for the login page or endpoint"
         },
         "credentials": {
@@ -38,6 +39,7 @@
             "totp_secret": {
               "type": "string",
               "pattern": "^[A-Za-z2-7]+=*$",
+              "maxLength": 128,
               "description": "TOTP secret for two-factor authentication (Base32 encoded, case insensitive)"
             }
           },

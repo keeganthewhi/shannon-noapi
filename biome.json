@@ -14,11 +14,11 @@
       "style": {
         "noNonNullAssertion": "warn",
         "useConst": "error",
-        "noParameterAssign": "off"
+        "noParameterAssign": "warn"
       },
       "suspicious": { "noExplicitAny": "warn" },
       "correctness": {
-        "noUnusedVariables": "off",
+        "noUnusedVariables": "warn",
         "noUnusedImports": "error"
       }
     }

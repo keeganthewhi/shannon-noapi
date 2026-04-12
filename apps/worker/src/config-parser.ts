@@ -17,7 +17,7 @@ import { ErrorCode } from './types/errors.js';
 const require = createRequire(import.meta.url);
 const addFormats: FormatsPlugin = require('ajv-formats');
 
-const ajv = new Ajv({ allErrors: true, verbose: true });
+const ajv = new Ajv({ allErrors: false, verbose: false });
 addFormats(ajv);
 
 let configSchema: object;

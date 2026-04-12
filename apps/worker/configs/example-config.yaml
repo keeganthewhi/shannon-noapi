@@ -8,8 +8,8 @@ authentication:
   login_type: form  # Options: 'form' or 'sso'
   login_url: "https://example.com/login"
   credentials:
-    username: "testuser"
-    password: "testpassword"
+    username: "CHANGE_ME_your_username"
+    password: "CHANGE_ME_your_password"
     totp_secret: "JBSWY3DPEHPK3PXP"  # Optional TOTP secret for 2FA
   
   # Natural language instructions for login flow

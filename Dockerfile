@@ -131,7 +131,7 @@ RUN addgroup -g 1001 pentest && \
 # System-level git config (survives UID remapping in entrypoint)
 RUN git config --system user.email "agent@localhost" && \
     git config --system user.name "Pentest Agent" && \
-    git config --system --add safe.directory '*'
+    git config --system --add safe.directory /app/repos
 
 # Set working directory
 WORKDIR /app
@@ -145,8 +145,8 @@ COPY --from=builder /app/apps/cli/package.json /app/apps/cli/package.json
 # Install coding agent CLIs and Playwright MCP
 # SHANNON_AGENT_CLI env var selects which one to use at runtime (claude/codex/gemini)
 RUN npm install -g @anthropic-ai/claude-code@2.1.84 @playwright/cli@0.1.1 && \
-    npm install -g @openai/codex@latest || true && \
-    npm install -g @google/gemini-cli@latest || true
+    npm install -g @openai/codex@0.120.0 && \
+    npm install -g @google/gemini-cli@0.37.1
 # Stage the playwright-cli skill outside /tmp/.claude so the runtime bind mount
 # doesn't shadow it. Adapters copy it into the writable .claude scratch dir at spawn time.
 RUN mkdir -p /opt/shannon/claude-skills && \

@@ -22,9 +22,11 @@ function tryExec(cmd: string, args: string[]): string | null {
   try {
     // Use shell with combined command to avoid the DEP0190 deprecation (args + shell: true)
     const fullCmd = [cmd, ...args].join(' ');
-    return execFileSync(process.platform === 'win32' ? 'cmd' : 'sh',
+    return execFileSync(
+      process.platform === 'win32' ? 'cmd' : 'sh',
       process.platform === 'win32' ? ['/c', fullCmd] : ['-c', fullCmd],
-      { stdio: 'pipe', encoding: 'utf-8', timeout: 5000 }).trim();
+      { stdio: 'pipe', encoding: 'utf-8', timeout: 5000 },
+    ).trim();
   } catch {
     return null;
   }
@@ -171,7 +173,9 @@ export function autoSetup(): void {
 
   // Allow explicit override via env var
   const override = process.env.SHANNON_AGENT_CLI?.toLowerCase();
-  const overrideMatch = override ? authenticated.find((a) => a.name === override) || agents.find((a) => a.name === override) : null;
+  const overrideMatch = override
+    ? authenticated.find((a) => a.name === override) || agents.find((a) => a.name === override)
+    : null;
 
   if (overrideMatch) {
     selected = overrideMatch;
@@ -238,7 +242,7 @@ export function autoSetup(): void {
     console.log(`Overwriting existing .env with ${selected.name} configuration.`);
   }
 
-  fs.writeFileSync(envPath, envContent);
+  fs.writeFileSync(envPath, envContent, { mode: 0o600 });
   console.log(`Written ${envPath}:`);
   for (const line of selected.envLines) {
     // Mask secrets

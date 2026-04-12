@@ -6,7 +6,7 @@ services:
   temporal:
     # Pinned version — :latest is a supply-chain risk (unpredictable upgrades,
     # possible regressions, version-specific CVEs). Bump explicitly after testing.
-    image: temporalio/temporal:1.26.2
+    image: temporalio/temporal:1.6.2
     container_name: shannon-temporal
     command: ["server", "start-dev", "--db-filename", "/home/temporal/temporal.db", "--ip", "0.0.0.0"]
     ports:

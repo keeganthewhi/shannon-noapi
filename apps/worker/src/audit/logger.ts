@@ -22,6 +22,20 @@ interface LogEvent {
   data: unknown;
 }
 
+const SENSITIVE_PATTERNS = [
+  /(?:password|passwd|secret|token|api[_-]?key|auth|bearer|credential|private[_-]?key)\s*[:=]\s*\S+/gi,
+  /(?:sk-|pk-|ghp_|gho_|ghs_|ghr_|glpat-|xox[bpsar]-)[A-Za-z0-9_-]+/g,
+  /eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/g,
+];
+
+function redactSensitive(input: string): string {
+  let result = input;
+  for (const pattern of SENSITIVE_PATTERNS) {
+    result = result.replace(pattern, '[REDACTED]');
+  }
+  return result;
+}
+
 /**
  * AgentLogger - Manages append-only logging for a single agent execution
  */
@@ -84,7 +98,7 @@ export class AgentLogger {
       data: eventData,
     };
 
-    const eventLine = `${JSON.stringify(event)}\n`;
+    const eventLine = redactSensitive(`${JSON.stringify(event)}\n`);
     return this.logStream.write(eventLine);
   }
 

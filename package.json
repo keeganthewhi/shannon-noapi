@@ -27,6 +27,9 @@
     "onlyBuiltDependencies": [
       "@swc/core",
       "protobufjs"
-    ]
+    ],
+    "overrides": {
+      "defu": ">=6.1.5"
+    }
   }
 }
