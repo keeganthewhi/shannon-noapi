@@ -333,13 +333,22 @@ async function validateCredentials(logger: ActivityLogger): Promise<Result<void,
   // it into the writable scratch HOME and Claude Code reads the live OAuth token
   // from there. Env-based tokens go stale within hours; mounted credentials stay
   // fresh because the host refreshes them in place.
-  const mountedClaudeCreds = join(process.env.HOME || '/tmp', '.claude', '.credentials.json');
+  // Check both $HOME/.claude/ (writable scratch, post-prepareClaudeHome) and
+  // /tmp/.claude/ (read-only host bind mount) — preflight runs before
+  // prepareClaudeHome copies credentials into the writable HOME.
+  const credPaths = [
+    join(process.env.HOME || '/tmp', '.claude', '.credentials.json'),
+    '/tmp/.claude/.credentials.json',
+  ];
   let hasMountedClaudeCreds = false;
-  try {
-    await fs.access(mountedClaudeCreds);
-    hasMountedClaudeCreds = true;
-  } catch {
-    // No mounted credentials
+  for (const credPath of credPaths) {
+    try {
+      await fs.access(credPath);
+      hasMountedClaudeCreds = true;
+      break;
+    } catch {
+      // Try next path
+    }
   }
 
   if (!process.env.ANTHROPIC_API_KEY && !process.env.CLAUDE_CODE_OAUTH_TOKEN && !hasMountedClaudeCreds) {
