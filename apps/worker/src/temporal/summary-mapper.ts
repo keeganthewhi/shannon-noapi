@@ -30,9 +30,20 @@ export function toWorkflowSummary(state: PipelineState, status: 'completed' | 'f
     status,
     totalDurationMs: summary.totalDurationMs,
     totalCostUsd: summary.totalCostUsd,
+    totalInputTokens: summary.totalInputTokens,
+    totalOutputTokens: summary.totalOutputTokens,
+    totalCacheCreationInputTokens: summary.totalCacheCreationInputTokens,
+    totalCacheReadInputTokens: summary.totalCacheReadInputTokens,
     completedAgents: state.completedAgents,
     agentMetrics: Object.fromEntries(
-      Object.entries(state.agentMetrics).map(([name, m]) => [name, { durationMs: m.durationMs, costUsd: m.costUsd }]),
+      Object.entries(state.agentMetrics).map(([name, m]) => [name, {
+        durationMs: m.durationMs,
+        costUsd: m.costUsd,
+        inputTokens: m.inputTokens,
+        outputTokens: m.outputTokens,
+        cacheCreationInputTokens: m.cacheCreationInputTokens,
+        cacheReadInputTokens: m.cacheReadInputTokens,
+      }]),
     ),
     ...(state.error && { error: state.error }),
   };

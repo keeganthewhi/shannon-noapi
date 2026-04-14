@@ -33,6 +33,10 @@ export interface ClaudePromptResult {
   duration: number;
   turns?: number | undefined;
   cost: number;
+  inputTokens?: number | null | undefined;
+  outputTokens?: number | null | undefined;
+  cacheCreationInputTokens?: number | null | undefined;
+  cacheReadInputTokens?: number | null | undefined;
   model?: string | undefined;
   partialCost?: number | undefined;
   apiErrorDetected?: boolean | undefined;
@@ -227,6 +231,10 @@ export async function runClaudePrompt(
     result = messageLoopResult.result;
     apiErrorDetected = messageLoopResult.apiErrorDetected;
     totalCost = messageLoopResult.cost;
+    const inputTokens = messageLoopResult.inputTokens;
+    const outputTokens = messageLoopResult.outputTokens;
+    const cacheCreationInputTokens = messageLoopResult.cacheCreationInputTokens;
+    const cacheReadInputTokens = messageLoopResult.cacheReadInputTokens;
     const model = messageLoopResult.model;
 
     // === SPENDING CAP SAFEGUARD ===
@@ -255,6 +263,10 @@ export async function runClaudePrompt(
       duration,
       turns: turnCount,
       cost: totalCost,
+      inputTokens,
+      outputTokens,
+      cacheCreationInputTokens,
+      cacheReadInputTokens,
       model,
       partialCost: totalCost,
       apiErrorDetected,
@@ -290,6 +302,10 @@ interface MessageLoopResult {
   result: string | null;
   apiErrorDetected: boolean;
   cost: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheCreationInputTokens: number | null;
+  cacheReadInputTokens: number | null;
   model?: string | undefined;
   structuredOutput?: unknown;
 }
@@ -315,6 +331,10 @@ async function processMessageStream(
   let result: string | null = null;
   let apiErrorDetected = false;
   let cost = 0;
+  let inputTokens: number | null = null;
+  let outputTokens: number | null = null;
+  let cacheCreationInputTokens: number | null = null;
+  let cacheReadInputTokens: number | null = null;
   let model: string | undefined;
   let structuredOutput: unknown | undefined;
   let lastHeartbeat = Date.now();
@@ -347,6 +367,13 @@ async function processMessageStream(
     if (dispatchResult.type === 'complete') {
       result = dispatchResult.result;
       cost = dispatchResult.cost;
+      inputTokens = dispatchResult.inputTokens;
+      outputTokens = dispatchResult.outputTokens;
+      cacheCreationInputTokens = dispatchResult.cacheCreationInputTokens;
+      cacheReadInputTokens = dispatchResult.cacheReadInputTokens;
+      if (dispatchResult.numTurns != null) {
+        turnCount = dispatchResult.numTurns;
+      }
       if (dispatchResult.structuredOutput !== undefined) {
         structuredOutput = dispatchResult.structuredOutput;
       }
@@ -369,6 +396,10 @@ async function processMessageStream(
     result,
     apiErrorDetected,
     cost,
+    inputTokens,
+    outputTokens,
+    cacheCreationInputTokens,
+    cacheReadInputTokens,
     model,
     ...(structuredOutput !== undefined && { structuredOutput }),
   };

@@ -27,6 +27,10 @@ export interface AgentEndResult {
   attemptNumber: number;
   duration_ms: number;
   cost_usd: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
   success: boolean;
   model?: string | undefined;
   error?: string | undefined;

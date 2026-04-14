@@ -28,6 +28,10 @@ export interface ResumeState {
 
 export interface PipelineSummary {
   totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheCreationInputTokens: number;
+  totalCacheReadInputTokens: number;
   totalDurationMs: number; // Wall-clock time (end - start)
   totalTurns: number;
   agentCount: number;

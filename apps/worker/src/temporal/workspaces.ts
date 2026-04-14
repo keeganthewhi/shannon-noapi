@@ -32,6 +32,10 @@ interface SessionJson {
   };
   metrics: {
     total_cost_usd: number;
+    total_input_tokens?: number;
+    total_output_tokens?: number;
+    total_cache_creation_input_tokens?: number;
+    total_cache_read_input_tokens?: number;
   };
 }
 
@@ -42,6 +46,10 @@ interface WorkspaceInfo {
   createdAt: Date;
   completedAt: Date | null;
   costUsd: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheCreationInputTokens: number;
+  cacheReadInputTokens: number;
 }
 
 function formatDuration(ms: number): string {
@@ -94,6 +102,10 @@ async function listWorkspaces(): Promise<void> {
         createdAt: new Date(data.session.createdAt),
         completedAt: data.session.completedAt ? new Date(data.session.completedAt) : null,
         costUsd: data.metrics.total_cost_usd,
+        inputTokens: data.metrics.total_input_tokens ?? 0,
+        outputTokens: data.metrics.total_output_tokens ?? 0,
+        cacheCreationInputTokens: data.metrics.total_cache_creation_input_tokens ?? 0,
+        cacheReadInputTokens: data.metrics.total_cache_read_input_tokens ?? 0,
       });
     } catch {
       // Skip directories without valid session.json
@@ -145,6 +157,11 @@ async function listWorkspaces(): Promise<void> {
 
     const resumeTag = isResumable ? ' (resumable)' : '';
 
+    const totalTokens = ws.inputTokens + ws.outputTokens + ws.cacheCreationInputTokens + ws.cacheReadInputTokens;
+    const tokenSummary = totalTokens > 0
+      ? `  in=${ws.inputTokens.toLocaleString()} out=${ws.outputTokens.toLocaleString()} cw=${ws.cacheCreationInputTokens.toLocaleString()} cr=${ws.cacheReadInputTokens.toLocaleString()}`
+      : '';
+
     console.log(
       '  ' +
         truncate(ws.name, nameWidth - 2).padEnd(nameWidth) +
@@ -154,6 +171,9 @@ async function listWorkspaces(): Promise<void> {
         cost.padEnd(costWidth) +
         resumeTag,
     );
+    if (tokenSummary) {
+      console.log(`${''.padEnd(nameWidth + 2)}tokens:${tokenSummary}`);
+    }
   }
 
   console.log();

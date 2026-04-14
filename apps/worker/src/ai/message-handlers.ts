@@ -203,10 +203,16 @@ function handleAssistantMessage(message: AssistantMessage, turnCount: number): A
 
 // Final message of a query with cost/duration info
 function handleResultMessage(message: ResultMessage): ResultData {
+  const usage = message.usage;
   const result: ResultData = {
     result: message.result || null,
     cost: message.total_cost_usd || 0,
     duration_ms: message.duration_ms || 0,
+    inputTokens: usage?.input_tokens ?? null,
+    outputTokens: usage?.output_tokens ?? null,
+    cacheCreationInputTokens: usage?.cache_creation_input_tokens ?? null,
+    cacheReadInputTokens: usage?.cache_read_input_tokens ?? null,
+    numTurns: message.num_turns ?? null,
     permissionDenials: message.permission_denials?.length || 0,
   };
 
@@ -263,7 +269,7 @@ function outputLines(lines: string[]): void {
 
 export type MessageDispatchAction =
   | { type: 'continue'; apiErrorDetected?: boolean | undefined; model?: string | undefined }
-  | { type: 'complete'; result: string | null; cost: number; structuredOutput?: unknown }
+  | { type: 'complete'; result: string | null; cost: number; inputTokens: number | null; outputTokens: number | null; cacheCreationInputTokens: number | null; cacheReadInputTokens: number | null; numTurns: number | null; structuredOutput?: unknown }
   | { type: 'throw'; error: Error };
 
 export interface MessageDispatchDeps {
@@ -360,6 +366,11 @@ export async function dispatchMessage(
         type: 'complete' as const,
         result: resultData.result,
         cost: resultData.cost,
+        inputTokens: resultData.inputTokens,
+        outputTokens: resultData.outputTokens,
+        cacheCreationInputTokens: resultData.cacheCreationInputTokens,
+        cacheReadInputTokens: resultData.cacheReadInputTokens,
+        numTurns: resultData.numTurns,
         ...(resultData.structuredOutput !== undefined && { structuredOutput: resultData.structuredOutput }),
       };
     }

@@ -121,6 +121,10 @@ function computeSummary(state: PipelineState): PipelineSummary {
   const metrics = Object.values(state.agentMetrics);
   return {
     totalCostUsd: metrics.reduce((sum, m) => sum + (m.costUsd ?? 0), 0),
+    totalInputTokens: metrics.reduce((sum, m) => sum + (m.inputTokens ?? 0), 0),
+    totalOutputTokens: metrics.reduce((sum, m) => sum + (m.outputTokens ?? 0), 0),
+    totalCacheCreationInputTokens: metrics.reduce((sum, m) => sum + (m.cacheCreationInputTokens ?? 0), 0),
+    totalCacheReadInputTokens: metrics.reduce((sum, m) => sum + (m.cacheReadInputTokens ?? 0), 0),
     totalDurationMs: Date.now() - state.startTime,
     totalTurns: metrics.reduce((sum, m) => sum + (m.numTurns ?? 0), 0),
     agentCount: state.completedAgents.length,

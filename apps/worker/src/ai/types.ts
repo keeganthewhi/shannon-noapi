@@ -31,6 +31,11 @@ export interface ResultData {
   result: string | null;
   cost: number;
   duration_ms: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheCreationInputTokens: number | null;
+  cacheReadInputTokens: number | null;
+  numTurns: number | null;
   subtype?: string;
   stop_reason?: string | null;
   permissionDenials: number;
@@ -67,6 +72,14 @@ export interface ResultMessage {
   result?: string;
   total_cost_usd?: number;
   duration_ms?: number;
+  num_turns?: number;
+  usage?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    cache_creation_input_tokens?: number;
+    cache_read_input_tokens?: number;
+    [key: string]: unknown;
+  };
   subtype?: string;
   stop_reason?: string | null;
   permission_denials?: unknown[];

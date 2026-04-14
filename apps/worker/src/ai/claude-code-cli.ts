@@ -59,6 +59,14 @@ export type CLIMessage =
       result?: string;
       total_cost_usd?: number;
       duration_ms?: number;
+      num_turns?: number;
+      usage?: {
+        input_tokens?: number;
+        output_tokens?: number;
+        cache_creation_input_tokens?: number;
+        cache_read_input_tokens?: number;
+        [key: string]: unknown;
+      };
       subtype?: string;
       stop_reason?: string | null;
       permission_denials?: unknown[];

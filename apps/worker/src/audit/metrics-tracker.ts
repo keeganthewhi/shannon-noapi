@@ -23,6 +23,10 @@ interface AttemptData {
   attempt_number: number;
   duration_ms: number;
   cost_usd: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  cache_creation_input_tokens: number | null;
+  cache_read_input_tokens: number | null;
   success: boolean;
   timestamp: string;
   model?: string | undefined;
@@ -34,6 +38,10 @@ interface AgentAuditMetrics {
   attempts: AttemptData[];
   final_duration_ms: number;
   total_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cache_creation_input_tokens: number;
+  total_cache_read_input_tokens: number;
   model?: string | undefined;
   checkpoint?: string | undefined;
 }
@@ -42,6 +50,10 @@ interface PhaseMetrics {
   duration_ms: number;
   duration_percentage: number;
   cost_usd: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
   agent_count: number;
 }
 
@@ -66,6 +78,10 @@ interface SessionData {
   metrics: {
     total_duration_ms: number;
     total_cost_usd: number;
+    total_input_tokens: number;
+    total_output_tokens: number;
+    total_cache_creation_input_tokens: number;
+    total_cache_read_input_tokens: number;
     phases: Record<string, PhaseMetrics>;
     agents: Record<string, AgentAuditMetrics>;
   };
@@ -126,6 +142,10 @@ export class MetricsTracker {
       metrics: {
         total_duration_ms: 0,
         total_cost_usd: 0,
+        total_input_tokens: 0,
+        total_output_tokens: 0,
+        total_cache_creation_input_tokens: 0,
+        total_cache_read_input_tokens: 0,
         phases: {}, // Phase-level aggregations
         agents: {}, // Agent-level metrics
       },
@@ -174,6 +194,10 @@ export class MetricsTracker {
       attempts: [],
       final_duration_ms: 0,
       total_cost_usd: 0,
+      total_input_tokens: 0,
+      total_output_tokens: 0,
+      total_cache_creation_input_tokens: 0,
+      total_cache_read_input_tokens: 0,
     };
     this.data.metrics.agents[agentName] = agent;
 
@@ -182,6 +206,10 @@ export class MetricsTracker {
       attempt_number: result.attemptNumber,
       duration_ms: result.duration_ms,
       cost_usd: result.cost_usd,
+      input_tokens: result.input_tokens,
+      output_tokens: result.output_tokens,
+      cache_creation_input_tokens: result.cache_creation_input_tokens,
+      cache_read_input_tokens: result.cache_read_input_tokens,
       success: result.success,
       timestamp: formatTimestamp(),
     };
@@ -197,8 +225,12 @@ export class MetricsTracker {
     // 3. Append attempt to history
     agent.attempts.push(attempt);
 
-    // 4. Recalculate total cost across all attempts (includes failures)
+    // 4. Recalculate totals across all attempts (includes failures)
     agent.total_cost_usd = agent.attempts.reduce((sum, a) => sum + a.cost_usd, 0);
+    agent.total_input_tokens = agent.attempts.reduce((sum, a) => sum + (a.input_tokens ?? 0), 0);
+    agent.total_output_tokens = agent.attempts.reduce((sum, a) => sum + (a.output_tokens ?? 0), 0);
+    agent.total_cache_creation_input_tokens = agent.attempts.reduce((sum, a) => sum + (a.cache_creation_input_tokens ?? 0), 0);
+    agent.total_cache_read_input_tokens = agent.attempts.reduce((sum, a) => sum + (a.cache_read_input_tokens ?? 0), 0);
 
     // 5. Update agent status based on outcome
     if (result.success) {
@@ -306,9 +338,17 @@ export class MetricsTracker {
     const totalDuration = successfulAgents.reduce((sum, [, data]) => sum + data.final_duration_ms, 0);
 
     const totalCost = successfulAgents.reduce((sum, [, data]) => sum + data.total_cost_usd, 0);
+    const totalInputTokens = successfulAgents.reduce((sum, [, data]) => sum + data.total_input_tokens, 0);
+    const totalOutputTokens = successfulAgents.reduce((sum, [, data]) => sum + data.total_output_tokens, 0);
+    const totalCacheCreation = successfulAgents.reduce((sum, [, data]) => sum + data.total_cache_creation_input_tokens, 0);
+    const totalCacheRead = successfulAgents.reduce((sum, [, data]) => sum + data.total_cache_read_input_tokens, 0);
 
     this.data.metrics.total_duration_ms = totalDuration;
     this.data.metrics.total_cost_usd = totalCost;
+    this.data.metrics.total_input_tokens = totalInputTokens;
+    this.data.metrics.total_output_tokens = totalOutputTokens;
+    this.data.metrics.total_cache_creation_input_tokens = totalCacheCreation;
+    this.data.metrics.total_cache_read_input_tokens = totalCacheRead;
 
     // Calculate phase-level metrics
     this.data.metrics.phases = this.calculatePhaseMetrics(successfulAgents);
@@ -344,11 +384,19 @@ export class MetricsTracker {
 
       const phaseDuration = agentList.reduce((sum, agent) => sum + agent.final_duration_ms, 0);
       const phaseCost = agentList.reduce((sum, agent) => sum + agent.total_cost_usd, 0);
+      const phaseInputTokens = agentList.reduce((sum, agent) => sum + agent.total_input_tokens, 0);
+      const phaseOutputTokens = agentList.reduce((sum, agent) => sum + agent.total_output_tokens, 0);
+      const phaseCacheCreation = agentList.reduce((sum, agent) => sum + agent.total_cache_creation_input_tokens, 0);
+      const phaseCacheRead = agentList.reduce((sum, agent) => sum + agent.total_cache_read_input_tokens, 0);
 
       phaseMetrics[phaseName] = {
         duration_ms: phaseDuration,
         duration_percentage: calculatePercentage(phaseDuration, totalDuration),
         cost_usd: phaseCost,
+        input_tokens: phaseInputTokens,
+        output_tokens: phaseOutputTokens,
+        cache_creation_input_tokens: phaseCacheCreation,
+        cache_read_input_tokens: phaseCacheRead,
         agent_count: agentList.length,
       };
     }

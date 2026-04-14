@@ -144,8 +144,10 @@ async function runAgentActivity(agentName: AgentName, input: ActivityInput): Pro
     // 4. Return metrics
     return {
       durationMs: Date.now() - startTime,
-      inputTokens: null,
-      outputTokens: null,
+      inputTokens: endResult.input_tokens,
+      outputTokens: endResult.output_tokens,
+      cacheCreationInputTokens: endResult.cache_creation_input_tokens,
+      cacheReadInputTokens: endResult.cache_read_input_tokens,
       costUsd: endResult.cost_usd,
       numTurns: null,
       model: endResult.model,
@@ -633,7 +635,18 @@ export async function logWorkflowComplete(input: ActivityInput, summary: Workflo
     metrics: {
       total_duration_ms: number;
       total_cost_usd: number;
-      agents: Record<string, { final_duration_ms: number; total_cost_usd: number }>;
+      total_input_tokens: number;
+      total_output_tokens: number;
+      total_cache_creation_input_tokens: number;
+      total_cache_read_input_tokens: number;
+      agents: Record<string, {
+        final_duration_ms: number;
+        total_cost_usd: number;
+        total_input_tokens: number;
+        total_output_tokens: number;
+        total_cache_creation_input_tokens: number;
+        total_cache_read_input_tokens: number;
+      }>;
     };
   };
 
@@ -646,6 +659,10 @@ export async function logWorkflowComplete(input: ActivityInput, summary: Workflo
         agentMetrics[agentName] = {
           durationMs: agentData.final_duration_ms,
           costUsd: agentData.total_cost_usd,
+          inputTokens: agentData.total_input_tokens,
+          outputTokens: agentData.total_output_tokens,
+          cacheCreationInputTokens: agentData.total_cache_creation_input_tokens,
+          cacheReadInputTokens: agentData.total_cache_read_input_tokens,
         };
       }
     }
@@ -656,6 +673,10 @@ export async function logWorkflowComplete(input: ActivityInput, summary: Workflo
     ...summary,
     totalDurationMs: sessionData.metrics.total_duration_ms,
     totalCostUsd: sessionData.metrics.total_cost_usd,
+    totalInputTokens: sessionData.metrics.total_input_tokens,
+    totalOutputTokens: sessionData.metrics.total_output_tokens,
+    totalCacheCreationInputTokens: sessionData.metrics.total_cache_creation_input_tokens,
+    totalCacheReadInputTokens: sessionData.metrics.total_cache_read_input_tokens,
     agentMetrics,
   };
 

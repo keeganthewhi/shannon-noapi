@@ -340,6 +340,7 @@ async function waitForWorkflowResult(
       console.log(`Agents completed: ${result.summary.agentCount}`);
       console.log(`Total turns: ${result.summary.totalTurns}`);
       console.log(`Run cost: $${result.summary.totalCostUsd.toFixed(4)}`);
+      console.log(`Tokens — input: ${result.summary.totalInputTokens.toLocaleString()}, output: ${result.summary.totalOutputTokens.toLocaleString()}, cache write: ${result.summary.totalCacheCreationInputTokens.toLocaleString()}, cache read: ${result.summary.totalCacheReadInputTokens.toLocaleString()}`);
 
       if (workspace.isResume) {
         try {

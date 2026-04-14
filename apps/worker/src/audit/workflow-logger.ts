@@ -27,12 +27,20 @@ export interface AgentLogDetails {
 export interface AgentMetricsSummary {
   durationMs: number;
   costUsd: number | null;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  cacheCreationInputTokens: number | null;
+  cacheReadInputTokens: number | null;
 }
 
 export interface WorkflowSummary {
   status: 'completed' | 'failed';
   totalDurationMs: number;
   totalCostUsd: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  totalCacheCreationInputTokens: number;
+  totalCacheReadInputTokens: number;
   completedAgents: string[];
   agentMetrics: Record<string, AgentMetricsSummary>;
   error?: string;
@@ -329,6 +337,7 @@ export class WorkflowLogger {
       `Status:      ${summary.status}`,
       `Duration:    ${formatDuration(summary.totalDurationMs)}`,
       `Total Cost:  $${summary.totalCostUsd.toFixed(4)}`,
+      `Tokens:      input=${summary.totalInputTokens.toLocaleString()}, output=${summary.totalOutputTokens.toLocaleString()}, cache_write=${summary.totalCacheCreationInputTokens.toLocaleString()}, cache_read=${summary.totalCacheReadInputTokens.toLocaleString()}`,
       `Agents:      ${summary.completedAgents.length} completed`,
     ];
 
