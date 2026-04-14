@@ -34,4 +34,10 @@ if [ -n "$TARGET_UID" ] && [ "$TARGET_UID" != "$CURRENT_UID" ]; then
   chown -R pentest:pentest /app/sessions /app/workspaces /opt/shannon 2>/dev/null || true
 fi
 
-exec su -m pentest -c "exec $*"
+# Try su for UID-remapped environments; fall back to direct exec when
+# --cap-drop=ALL / --security-opt=no-new-privileges blocks setuid.
+if su -m pentest -c "true" 2>/dev/null; then
+  exec su -m pentest -c "exec $*"
+else
+  exec "$@"
+fi
