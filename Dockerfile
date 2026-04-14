@@ -192,5 +192,11 @@ ENV HOME=/tmp
 ENV XDG_CACHE_HOME=/tmp/.cache
 ENV XDG_CONFIG_HOME=/tmp/.config
 
+# Run as non-root by default. The entrypoint handles UID remapping
+# (Linux) via su when SHANNON_HOST_UID is set. On Windows/restricted
+# environments where su is blocked, the process already runs as pentest
+# so Claude Code accepts --dangerously-skip-permissions.
+USER pentest
+
 ENTRYPOINT ["/app/entrypoint.sh"]
 CMD ["node", "apps/worker/dist/temporal/worker.js"]

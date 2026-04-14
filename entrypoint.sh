@@ -36,6 +36,8 @@ fi
 
 # Try su for UID-remapped environments; fall back to direct exec when
 # --cap-drop=ALL / --security-opt=no-new-privileges blocks setuid.
+# With USER pentest in the Dockerfile, the process already runs as
+# pentest so direct exec is safe.
 if su -m pentest -c "true" 2>/dev/null; then
   exec su -m pentest -c "exec $*"
 else
