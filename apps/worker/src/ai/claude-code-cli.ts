@@ -92,7 +92,11 @@ export type CLIMessage =
 async function prepareClaudeHome(): Promise<string | null> {
   try {
     const { mkdirSync, copyFileSync, existsSync, cpSync } = await import('node:fs');
-    const mountedClaude = join(process.env.HOME || '/tmp', '.claude');
+    // Check both $HOME/.claude and /tmp/.claude (read-only host bind mount).
+    // When --cap-drop=ALL blocks su, HOME=/home/pentest instead of /tmp/.claude-parent,
+    // so credentials are only at the /tmp/.claude mount point.
+    const homeClaude = join(process.env.HOME || '/tmp', '.claude');
+    const mountedClaude = existsSync(homeClaude) ? homeClaude : '/tmp/.claude';
     if (!existsSync(mountedClaude)) return null;
 
     const writableHome = '/tmp/.claude-parent';
