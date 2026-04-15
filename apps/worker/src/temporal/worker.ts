@@ -38,7 +38,8 @@ import { parseConfig } from '../config-parser.js';
 import type { PipelineConfig } from '../types/config.js';
 import { fileExists, readJson } from '../utils/file-io.js';
 import * as activities from './activities.js';
-import type { PipelineInput, PipelineProgress, PipelineState } from './shared.js';
+import type { ScanProfile } from '../types/agents.js';
+import type { PipelineInput, PipelineProgress, PipelineState, SkipToPhase } from './shared.js';
 
 dotenv.config();
 
@@ -56,6 +57,8 @@ interface CliArgs {
   outputPath?: string;
   pipelineTestingMode: boolean;
   resumeFromWorkspace?: string;
+  skipToPhase?: SkipToPhase;
+  scanProfile?: ScanProfile;
 }
 
 function showUsage(): void {
@@ -67,6 +70,8 @@ function showUsage(): void {
   console.log('  --task-queue <name>    Task queue name (required)');
   console.log('  --config <path>        Configuration file path');
   console.log('  --workspace <name>     Resume from existing workspace');
+  console.log('  --skip-to <phase>      Skip to a later phase (currently: exploit)');
+  console.log('  --profile <tier>       Scan profile: minimal, standard, comprehensive, auto (default: auto)');
   console.log('  --pipeline-testing     Use minimal prompts for fast testing\n');
 }
 
@@ -83,6 +88,8 @@ function parseCliArgs(argv: string[]): CliArgs {
   let outputPath: string | undefined;
   let pipelineTestingMode = false;
   let resumeFromWorkspace: string | undefined;
+  let skipToPhase: SkipToPhase | undefined;
+  let scanProfile: ScanProfile | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -110,6 +117,27 @@ function parseCliArgs(argv: string[]): CliArgs {
         resumeFromWorkspace = nextArg;
         i++;
       }
+    } else if (arg === '--skip-to') {
+      const nextArg = argv[i + 1];
+      if (nextArg && !nextArg.startsWith('-')) {
+        if (nextArg !== 'exploit') {
+          console.error(`Error: --skip-to only supports "exploit" (got "${nextArg}")`);
+          process.exit(1);
+        }
+        skipToPhase = 'exploit';
+        i++;
+      }
+    } else if (arg === '--profile') {
+      const nextArg = argv[i + 1];
+      if (nextArg && !nextArg.startsWith('-')) {
+        const valid: ScanProfile[] = ['minimal', 'standard', 'comprehensive', 'auto'];
+        if (!valid.includes(nextArg as ScanProfile)) {
+          console.error(`Error: --profile must be one of: ${valid.join(', ')} (got "${nextArg}")`);
+          process.exit(1);
+        }
+        scanProfile = nextArg as ScanProfile;
+        i++;
+      }
     } else if (arg === '--pipeline-testing') {
       pipelineTestingMode = true;
     } else if (arg && !arg.startsWith('-')) {
@@ -133,6 +161,12 @@ function parseCliArgs(argv: string[]): CliArgs {
     process.exit(1);
   }
 
+  if (skipToPhase && !resumeFromWorkspace) {
+    console.error('Error: --skip-to requires --workspace <name>');
+    showUsage();
+    process.exit(1);
+  }
+
   return {
     webUrl,
     repoPath,
@@ -141,6 +175,8 @@ function parseCliArgs(argv: string[]): CliArgs {
     ...(configPath && { configPath }),
     ...(outputPath && { outputPath }),
     ...(resumeFromWorkspace && { resumeFromWorkspace }),
+    ...(skipToPhase && { skipToPhase }),
+    ...(scanProfile && { scanProfile }),
   };
 }
 
@@ -288,6 +324,9 @@ async function loadPipelineConfig(configPath: string | undefined): Promise<Pipel
     if (raw.max_concurrent_pipelines !== undefined) {
       result.max_concurrent_pipelines = Number(raw.max_concurrent_pipelines);
     }
+    if (raw.scan_profile !== undefined) {
+      result.scan_profile = raw.scan_profile as ScanProfile;
+    }
     return result;
   } catch {
     return {};
@@ -309,6 +348,8 @@ function buildPipelineInput(
     ...(workspace.isResume && args.resumeFromWorkspace && { resumeFromWorkspace: args.resumeFromWorkspace }),
     ...(workspace.terminatedWorkflows.length > 0 && { terminatedWorkflows: workspace.terminatedWorkflows }),
     ...(Object.keys(pipelineConfig).length > 0 && { pipelineConfig }),
+    ...(args.skipToPhase && { skipToPhase: args.skipToPhase }),
+    ...(args.scanProfile && { scanProfile: args.scanProfile }),
   };
 }
 
@@ -323,7 +364,7 @@ async function waitForWorkflowResult(
       const progress = await handle.query<PipelineProgress>(PROGRESS_QUERY);
       const elapsed = Math.floor(progress.elapsedMs / 1000);
       console.log(
-        `[${elapsed}s] Phase: ${progress.currentPhase || 'unknown'} | Agent: ${progress.currentAgent || 'none'} | Completed: ${progress.completedAgents.length}/13`,
+        `[${elapsed}s] Phase: ${progress.currentPhase || 'unknown'} | Agent: ${progress.currentAgent || 'none'} | Completed: ${progress.completedAgents.length}`,
       );
     } catch {
       // Workflow may have completed

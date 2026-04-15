@@ -24,8 +24,8 @@
  */
 
 import { log, proxyActivities, setHandler, workflowInfo } from '@temporalio/workflow';
-import type { AgentName, VulnType } from '../types/agents.js';
-import { ALL_AGENTS } from '../types/agents.js';
+import type { AgentName, ScanProfile, VulnType } from '../types/agents.js';
+import { ALL_AGENTS, autoDetectProfile, SCAN_PROFILE_TYPES } from '../types/agents.js';
 import type * as activities from './activities.js';
 import type { ActivityInput } from './activities.js';
 import {
@@ -366,6 +366,46 @@ export async function pentestPipelineWorkflow(input: PipelineInput): Promise<Pip
     await preflightActs.runPreflightValidation(activityInput);
     log.info('Preflight validation passed');
 
+    // === Resolve Scan Profile ===
+    // Determines which vuln/exploit pairs to run based on project size.
+    const requestedProfile: ScanProfile = input.pipelineConfig?.scan_profile ?? input.scanProfile ?? 'auto';
+    let enabledVulnTypes: VulnType[];
+
+    if (requestedProfile === 'auto') {
+      const { fileCount } = await preflightActs.detectProjectSize(activityInput);
+      const detected = autoDetectProfile(fileCount);
+      enabledVulnTypes = [...SCAN_PROFILE_TYPES[detected]];
+      log.info(`Auto-detected scan profile: ${detected} (${fileCount} source files, ${enabledVulnTypes.length} vuln types: ${enabledVulnTypes.join(', ')})`);
+    } else {
+      enabledVulnTypes = [...SCAN_PROFILE_TYPES[requestedProfile]];
+      log.info(`Scan profile: ${requestedProfile} (${enabledVulnTypes.length} vuln types: ${enabledVulnTypes.join(', ')})`);
+    }
+
+    // === --skip-to exploit validation (profile-aware) ===
+    if (input.skipToPhase === 'exploit') {
+      if (!resumeState) {
+        throw new Error(
+          '--skip-to exploit requires --workspace <name>: exploitation reuses deliverables from a prior scan.',
+        );
+      }
+      const preExploit: AgentName[] = [
+        'pre-recon', 'recon',
+        ...enabledVulnTypes.map((t) => `${t}-vuln` as AgentName),
+      ];
+      const missing = preExploit.filter((a) => !resumeState!.completedAgents.includes(a));
+      if (missing.length > 0) {
+        throw new Error(
+          `--skip-to exploit: prior workspace is missing deliverables for [${missing.join(', ')}]. ` +
+          `Run a full scan first, or resume without --skip-to.`,
+        );
+      }
+      // Force-re-run exploits and report even if they completed previously.
+      resumeState.completedAgents = resumeState.completedAgents.filter(
+        (a) => !a.endsWith('-exploit') && a !== 'report',
+      );
+      log.info('--skip-to exploit: reusing pre-recon/recon/vuln deliverables, re-running exploit + report');
+    }
+
     // === Initialize Deliverables Git ===
     await a.initDeliverableGit(activityInput);
 
@@ -376,9 +416,7 @@ export async function pentestPipelineWorkflow(input: PipelineInput): Promise<Pip
     await runSequentialPhase('recon', 'recon', a.runReconAgent);
 
     // === Phases 3-4: Vulnerability Analysis + Exploitation (Pipelined) ===
-    // Each vuln type runs as an independent pipeline:
-    // vuln agent → queue check → conditional exploit agent
-    // Exploits start immediately when their vuln finishes, not waiting for all.
+    // Only enabled vuln types run — profile controls which pairs are active.
     state.currentPhase = 'vulnerability-exploitation';
     state.currentAgent = 'pipelines';
     await a.logPhaseTransition(activityInput, 'vulnerability-exploitation', 'start');
@@ -427,7 +465,8 @@ export async function pentestPipelineWorkflow(input: PipelineInput): Promise<Pip
 
     const maxConcurrent = input.pipelineConfig?.max_concurrent_pipelines ?? 5;
 
-    const pipelineConfigs = buildPipelineConfigs();
+    const allPipelineConfigs = buildPipelineConfigs();
+    const pipelineConfigs = allPipelineConfigs.filter((c) => enabledVulnTypes.includes(c.vulnType));
     const pipelineThunks: Array<() => Promise<VulnExploitPipelineResult>> = [];
 
     for (const config of pipelineConfigs) {

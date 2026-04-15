@@ -5,6 +5,8 @@ export type { AgentMetrics } from '../types/metrics.js';
 import type { PipelineConfig } from '../types/config.js';
 import type { AgentMetrics } from '../types/metrics.js';
 
+export type SkipToPhase = 'exploit';
+
 export interface PipelineInput {
   webUrl: string;
   repoPath: string;
@@ -16,6 +18,8 @@ export interface PipelineInput {
   sessionId?: string; // Workspace directory name (distinct from workflowId for named workspaces)
   resumeFromWorkspace?: string; // Workspace name to resume from
   terminatedWorkflows?: string[]; // Workflows terminated during resume
+  skipToPhase?: SkipToPhase;
+  scanProfile?: import('../types/agents.js').ScanProfile;
 }
 
 export interface ResumeState {

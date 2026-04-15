@@ -24,6 +24,8 @@ export interface StartArgs {
   pipelineTesting: boolean;
   router: boolean;
   version: string;
+  skipToPhase?: string;
+  scanProfile?: string;
 }
 
 export async function start(args: StartArgs): Promise<void> {
@@ -148,6 +150,8 @@ export async function start(args: StartArgs): Promise<void> {
     ...(outputDir && { outputDir }),
     workspace,
     ...(args.pipelineTesting && { pipelineTesting: true }),
+    ...(args.skipToPhase && { skipToPhase: args.skipToPhase }),
+    ...(args.scanProfile && { scanProfile: args.scanProfile }),
   });
 
   // 14. Wait for workflow to register, then display info

@@ -197,6 +197,8 @@ export interface WorkerOptions {
   outputDir?: string;
   workspace: string;
   pipelineTesting?: boolean;
+  skipToPhase?: string;
+  scanProfile?: string;
 }
 
 /**
@@ -309,6 +311,12 @@ export function spawnWorker(opts: WorkerOptions): ChildProcess {
   args.push('--workspace', opts.workspace);
   if (opts.pipelineTesting) {
     args.push('--pipeline-testing');
+  }
+  if (opts.skipToPhase) {
+    args.push('--skip-to', opts.skipToPhase);
+  }
+  if (opts.scanProfile) {
+    args.push('--profile', opts.scanProfile);
   }
 
   // Prevent MSYS/Git Bash from converting Unix paths (e.g. /repos/my-repo) to Windows paths

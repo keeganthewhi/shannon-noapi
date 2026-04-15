@@ -68,6 +68,8 @@ Options for 'start':
   -c, --config <path>       Configuration file (YAML)
   -o, --output <path>       Copy deliverables to this directory after run
   -w, --workspace <name>    Named workspace (auto-resumes if exists)
+      --skip-to <phase>     Skip to a later phase using an existing workspace (currently: exploit)
+      --profile <tier>      Scan profile: minimal, standard, comprehensive, auto (default: auto)
       --pipeline-testing    Use minimal prompts for fast testing
       --router              Route requests through claude-code-router
 
@@ -95,6 +97,8 @@ interface ParsedStartArgs {
   output?: string;
   pipelineTesting: boolean;
   router: boolean;
+  skipToPhase?: string;
+  scanProfile?: string;
 }
 
 function parseStartArgs(argv: string[]): ParsedStartArgs {
@@ -105,6 +109,8 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
   let output: string | undefined;
   let pipelineTesting = false;
   let router = false;
+  let skipToPhase: string | undefined;
+  let scanProfile: string | undefined;
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
@@ -146,6 +152,27 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
           i++;
         }
         break;
+      case '--skip-to':
+        if (next && !next.startsWith('-')) {
+          if (next !== 'exploit') {
+            console.error(`ERROR: --skip-to only supports "exploit" (got "${next}")`);
+            process.exit(1);
+          }
+          skipToPhase = next;
+          i++;
+        }
+        break;
+      case '--profile':
+        if (next && !next.startsWith('-')) {
+          const validProfiles = ['minimal', 'standard', 'comprehensive', 'auto'];
+          if (!validProfiles.includes(next)) {
+            console.error(`ERROR: --profile must be one of: ${validProfiles.join(', ')} (got "${next}")`);
+            process.exit(1);
+          }
+          scanProfile = next;
+          i++;
+        }
+        break;
       case '--pipeline-testing':
         pipelineTesting = true;
         break;
@@ -165,6 +192,11 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
     process.exit(1);
   }
 
+  if (skipToPhase && !workspace) {
+    console.error('ERROR: --skip-to requires --workspace <name>');
+    process.exit(1);
+  }
+
   // Default to code-only mode when no URL is provided
   if (!url) {
     url = 'code-only';
@@ -179,6 +211,8 @@ function parseStartArgs(argv: string[]): ParsedStartArgs {
     ...(config && { config }),
     ...(workspace && { workspace }),
     ...(output && { output }),
+    ...(skipToPhase && { skipToPhase }),
+    ...(scanProfile && { scanProfile }),
   };
 }
 
