@@ -28,7 +28,7 @@ import { ExploitationCheckerService } from '../services/exploitation-checker.js'
 import { executeGitCommandWithRetry } from '../services/git-manager.js';
 import { runPreflightChecks } from '../services/preflight.js';
 import type { ExploitationDecision, VulnType } from '../services/queue-validation.js';
-import { assembleFinalReport, injectModelIntoReport } from '../services/reporting.js';
+import { assembleFinalReport, injectModelIntoReport, injectScanMetrics } from '../services/reporting.js';
 import { AGENTS } from '../session-manager.js';
 import type { AgentName } from '../types/agents.js';
 import { ALL_AGENTS } from '../types/agents.js';
@@ -341,6 +341,46 @@ export async function initDeliverableGit(input: ActivityInput): Promise<void> {
 }
 
 /**
+ * Detect project size by counting source files in the repository.
+ * Used for auto-detecting the scan profile (minimal/standard/comprehensive).
+ */
+export async function detectProjectSize(input: ActivityInput): Promise<{ fileCount: number }> {
+  const { repoPath } = input;
+  const logger = createActivityLogger();
+
+  const EXCLUDED_DIRS = new Set([
+    'node_modules', '.git', 'vendor', 'dist', 'build', '__pycache__',
+    '.next', '.shannon', '.venv', 'venv', '.tox', 'coverage',
+    '.cache', '.nuxt', '.output', 'target', 'out',
+  ]);
+
+  let fileCount = 0;
+
+  async function walk(dir: string): Promise<void> {
+    let entries: import('node:fs').Dirent[];
+    try {
+      entries = await fs.readdir(dir, { withFileTypes: true });
+    } catch {
+      return; // Permission denied or broken symlink — skip
+    }
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        if (!EXCLUDED_DIRS.has(entry.name) && !entry.name.startsWith('.')) {
+          await walk(path.join(dir, entry.name));
+        }
+      } else if (entry.isFile()) {
+        fileCount++;
+      }
+    }
+  }
+
+  await walk(repoPath);
+  logger.info(`Project size detection: ${fileCount} source files in ${repoPath}`);
+
+  return { fileCount };
+}
+
+/**
  * Assemble the final report by concatenating exploitation evidence files.
  */
 export async function assembleReportActivity(input: ActivityInput): Promise<void> {
@@ -367,6 +407,12 @@ export async function injectReportMetadataActivity(input: ActivityInput): Promis
   } catch (error) {
     const err = error as Error;
     logger.warn(`Error injecting model into report: ${err.message}`);
+  }
+  try {
+    await injectScanMetrics(repoPath, effectiveOutputPath, logger);
+  } catch (error) {
+    const err = error as Error;
+    logger.warn(`Error injecting scan metrics into report: ${err.message}`);
   }
 }
 

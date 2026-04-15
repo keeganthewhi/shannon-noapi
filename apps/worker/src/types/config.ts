@@ -54,6 +54,7 @@ export type RetryPreset = 'default' | 'subscription';
 export interface PipelineConfig {
   retry_preset?: RetryPreset;
   max_concurrent_pipelines?: number;
+  scan_profile?: import('./agents.js').ScanProfile;
 }
 
 export interface DistributedConfig {

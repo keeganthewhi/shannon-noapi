@@ -56,6 +56,39 @@ export interface AgentDefinition {
  */
 export type VulnType = 'injection' | 'xss' | 'auth' | 'ssrf' | 'authz';
 
+/** Runtime array of all vulnerability types (mirrors the VulnType union). */
+export const VULN_TYPES: readonly VulnType[] = ['injection', 'xss', 'auth', 'ssrf', 'authz'];
+
+/**
+ * Scan profile controls which vuln/exploit pairs run based on project size.
+ * 'auto' detects project size and picks the appropriate tier.
+ */
+export type ScanProfile = 'minimal' | 'standard' | 'comprehensive' | 'auto';
+
+/** Valid concrete profiles (excludes 'auto'). */
+export type ConcreteProfile = Exclude<ScanProfile, 'auto'>;
+
+/** Mapping from scan profile to which vuln types are enabled. */
+export const SCAN_PROFILE_TYPES: Readonly<Record<ConcreteProfile, readonly VulnType[]>> = {
+  minimal: ['injection', 'auth'],
+  standard: ['injection', 'xss', 'auth', 'authz'],
+  comprehensive: VULN_TYPES,
+};
+
+/** Auto-detect profile from source file count. */
+export function autoDetectProfile(fileCount: number): ConcreteProfile {
+  if (fileCount < 50) return 'minimal';
+  if (fileCount <= 300) return 'standard';
+  return 'comprehensive';
+}
+
+/** Compute the effective agent list for a given set of enabled vuln types. */
+export function getEffectiveAgents(enabledVulnTypes: readonly VulnType[]): AgentName[] {
+  const vuln = enabledVulnTypes.map((t) => `${t}-vuln` as AgentName);
+  const exploit = enabledVulnTypes.map((t) => `${t}-exploit` as AgentName);
+  return ['pre-recon', 'recon', ...vuln, ...exploit, 'report'];
+}
+
 /**
  * Decision returned by queue validation for exploitation phase.
  */
