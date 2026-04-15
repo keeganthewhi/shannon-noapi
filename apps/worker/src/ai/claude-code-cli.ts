@@ -104,7 +104,7 @@ async function prepareClaudeHome(): Promise<string | null> {
 
     // Writable subdirs Claude Code touches during normal operation. Pre-creating
     // them avoids first-call mkdir races if Claude assumes the parent exists.
-    for (const sub of ['', 'session-env', 'shell-snapshots', 'todos', 'projects', 'tasks', 'telemetry', 'statsig', 'skills']) {
+    for (const sub of ['', 'session-env', 'shell-snapshots', 'todos', 'projects', 'tasks', 'telemetry', 'statsig', 'skills', 'hooks']) {
       mkdirSync(join(writableClaude, sub), { recursive: true });
     }
 
@@ -120,6 +120,21 @@ async function prepareClaudeHome(): Promise<string | null> {
         }
       }
     }
+
+    // The host's settings.json may carry `hooks` with CRLF-terminated shell
+    // bodies (Windows). Bash inside the container rejects `\r`, so every
+    // Bash tool call from subagents fails and live exploitation aborts.
+    // Force `hooks: {}` in the writable copy so Claude Code discovers none.
+    const settingsPath = join(writableClaude, 'settings.json');
+    try {
+      const { readFileSync, writeFileSync } = await import('node:fs');
+      let settings: Record<string, unknown> = {};
+      if (existsSync(settingsPath)) {
+        try { settings = JSON.parse(readFileSync(settingsPath, 'utf-8')); } catch { /* corrupted — overwrite */ }
+      }
+      settings.hooks = {};
+      writeFileSync(settingsPath, JSON.stringify(settings, null, 2));
+    } catch { /* non-fatal — Claude will fall back to its own defaults */ }
 
     // Baked-in playwright-cli skill lives outside the mount so it survives runtime
     // shadowing. Copy it into the writable skills dir if present.
