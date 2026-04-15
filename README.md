@@ -271,16 +271,82 @@ authentication:
 ./shannon start -u https://myapp.com -r /path/to/code -c config.yaml
 ```
 
+## Scan Profiles
+
+Shannon automatically adjusts the number of vulnerability agents based on your project size:
+
+| Profile | Source Files | Vuln Types | Parallel Agents |
+|---------|-------------|-----------|-----------------|
+| `minimal` | < 50 | injection, auth | 4 |
+| `standard` | 50–300 | injection, xss, auth, authz | 8 |
+| `comprehensive` | 300+ | all 5 | 10 |
+
+**Auto-detected by default.** Override with `--profile`:
+
+```bash
+./shannon start -r /path/to/code --profile minimal       # fast, 2 vuln types
+./shannon start -r /path/to/code --profile comprehensive  # full, all 5 types
+```
+
+Or set in config YAML:
+
+```yaml
+pipeline:
+  scan_profile: standard
+```
+
+## Re-running Exploitation
+
+Already ran a scan and want to re-test just the exploitation phase? Use `--skip-to exploit` with an existing workspace:
+
+```bash
+./shannon start -r /path/to/code -u https://myapp.com -w my-audit --skip-to exploit
+```
+
+This skips pre-recon, recon, and vuln analysis (reusing their deliverables) and only re-runs the exploit agents + report. Saves $15–30 per re-run.
+
+## Report Metrics
+
+Every report includes an appendix with per-agent metrics:
+
+```
+## Appendix: Scan Metrics
+
+| Agent        | Duration | Cost (USD) | Input Tokens | Output Tokens | ...
+|--------------|----------|------------|--------------|---------------|
+| pre-recon    | 27m 32s  | $4.26      | 17,872       | 23,529        |
+| recon        | 16m 19s  | $2.57      | 18           | 25,478        |
+| ...          | ...      | ...        | ...          | ...           |
+| **Total**    | **2h 34m** | **$24.57** | **29,020** | **275,051**   |
+
+- Scan Profile: comprehensive (auto-detected, 856 source files)
+- Model: claude-opus-4-6, claude-sonnet-4-6
+```
+
 ## All Commands
 
 ```bash
-./shannon start -r <repo> [-u <url>] [-w <name>] [-c <config>] [--router] [--pipeline-testing]
+./shannon start -r <repo> [-u <url>] [-w <name>] [-c <config>] [options]
 ./shannon logs <workspace>
 ./shannon status
 ./shannon workspaces
 ./shannon stop [--clean]
 ./shannon build [--no-cache]
 ```
+
+### Start Options
+
+| Option | Description |
+|--------|-------------|
+| `-u, --url <url>` | Target URL (omit for code-only mode) |
+| `-r, --repo <path>` | Repository path (required) |
+| `-c, --config <path>` | Configuration file (YAML) |
+| `-o, --output <path>` | Copy deliverables to this directory |
+| `-w, --workspace <name>` | Named workspace (auto-resumes if exists) |
+| `--profile <tier>` | Scan profile: `minimal`, `standard`, `comprehensive`, `auto` |
+| `--skip-to <phase>` | Skip to a later phase (currently: `exploit`) |
+| `--pipeline-testing` | Use minimal prompts for fast testing |
+| `--router` | Route requests through claude-code-router |
 
 ## Warnings
 
